@@ -206,3 +206,59 @@ async def cleanup_logs(request: Request):
     except Exception as e:
         logger.error(f"Cleanup failed: {e}")
         raise HTTPException(status_code=500, detail="Cleanup failed")
+
+# -------------------- Portal Endpoints --------------------
+from fastapi.security import HTTPBearer
+from fastapi import Depends
+
+security = HTTPBearer()
+
+async def get_current_user(request: Request):
+    """Validate Supabase JWT from Authorization header and return user."""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    token = auth_header.split(" ")[1]
+    try:
+        # Use Supabase to get user from JWT
+        user = supabase.auth.get_user(token)
+        return user
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+@app.get("/portal/me")
+async def portal_me(request: Request, user = Depends(get_current_user)):
+    """Return current user's API key and credit balance."""
+    user_id = user.user.id
+    # Get API key from users table
+    user_resp = supabase.table("users").select("api_key").eq("id", user_id).execute()
+    if not user_resp.data:
+        raise HTTPException(status_code=404, detail="User not found")
+    api_key = user_resp.data[0]["api_key"]
+    # Get credits
+    credit_resp = supabase.table("api_keys").select("credits_remaining").eq("key", api_key).execute()
+    credits = credit_resp.data[0]["credits_remaining"] if credit_resp.data else 0
+    return {"api_key": api_key, "credits_remaining": credits}
+
+@app.get("/portal/usage")
+async def portal_usage(request: Request, user = Depends(get_current_user)):
+    """Return daily usage counts for the last 7 days."""
+    user_id = user.user.id
+    user_resp = supabase.table("users").select("api_key").eq("id", user_id).execute()
+    if not user_resp.data:
+        raise HTTPException(status_code=404, detail="User not found")
+    api_key = user_resp.data[0]["api_key"]
+    # Query translation_logs for the last 7 days, grouped by date
+    result = supabase.table("translation_logs") \
+        .select("created_at", count="exact") \
+        .eq("api_key", api_key) \
+        .gte("created_at", "now() - interval '7 days'") \
+        .order("created_at", desc=False) \
+        .execute()
+    # Simple grouping in Python (Supabase may not do date grouping easily)
+    from collections import defaultdict
+    daily = defaultdict(int)
+    for row in result.data:
+        date_str = row["created_at"][:10]  # YYYY-MM-DD
+        daily[date_str] += 1
+    return {"daily_usage": dict(sorted(daily.items()))}
