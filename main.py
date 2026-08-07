@@ -92,8 +92,12 @@ def transform_hl7_to_fhir(hl7_message: str) -> dict:
     msg = parse_message(clean)
     pid = msg.PID
     mrn = pid.PID_3[0].value if pid.PID_3 else str(uuid.uuid4())
-    family = pid.PID_5[0].value if pid.PID_5 else "Unknown"
-    given = pid.PID_5[1].value if len(pid.PID_5) > 1 else "Unknown"
+    if pid.PID_5 and len(pid.PID_5) > 0:
+        name_field = pid.PID_5[0]
+        family = name_field.PID_5_1.value if name_field.PID_5_1 else "Unknown"
+        given = name_field.PID_5_2.value if name_field.PID_5_2 else "Unknown"
+    else:
+        family, given = "Unknown", "Unknown"
     dob = pid.PID_7.value if pid.PID_7 else "19700101"
 
     pv1 = msg.PV1 if hasattr(msg, "PV1") else None
