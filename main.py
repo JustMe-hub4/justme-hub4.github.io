@@ -69,11 +69,11 @@ def check_idempotency(api_key: str, idem_key: str) -> Optional[dict]:
 
 def store_idempotency(api_key: str, idem_key: str, response_data: dict):
     try:
-        supabase.table("idempotency_store").insert({
+        supabase.table("idempotency_store").upsert({
             "api_key": api_key,
             "idempotency_key": idem_key,
             "response": response_data,
-        }).execute()
+        }, on_conflict="api_key,idempotency_key").execute()
     except Exception as e:
         logger.error(f"Idempotency store error: {e}")
 
