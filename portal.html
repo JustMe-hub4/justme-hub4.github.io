@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>FHIR Interop Portal</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 700px; margin: 40px auto; padding: 20px; }
+    #login, #dashboard { display: none; }
+    .card { background: #f9f9f9; padding: 15px; border-radius: 10px; margin: 15px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    button { padding: 10px 20px; margin: 5px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .primary { background: #007bff; color: white; }
+    .danger { background: #dc3545; color: white; }
+    .copy-btn { font-size: 0.9em; margin-left: 10px; }
+    input[type="email"] { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; }
+    canvas { max-width: 100%; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div id="login">
+    <h1>FHIR Interop Engine</h1>
+    <input type="email" id="email" placeholder="Enter your email">
+    <button onclick="sendMagicLink()" class="primary">Sign In / Sign Up</button>
+    <p style="color: gray;">No password – we'll email you a magic link.</p>
+  </div>
+
+  <div id="dashboard">
+    <h2>Dashboard</h2>
+    <div class="card">
+      <strong>API Key:</strong> <span id="apiKey"></span>
+      <button class="copy-btn" onclick="copyKey()">Copy</button>
+      <button class="danger" onclick="rotateKey()">Rotate Key</button>
+    </div>
+    <div class="card">
+      <strong>Credits:</strong> <span id="credits"></span>
+      <button id="buyBtn" class="primary" onclick="buyCredits()">Buy Credits</button>
+    </div>
+    <div class="card">
+      <strong>Usage (last 7 days)</strong>
+      <canvas id="usageChart"></canvas>
+    </div>
+    <div class="card">
+      <strong>Invoice History</strong>
+      <ul id="invoiceList"></ul>
+    </div>
+    <button onclick="supabase.auth.signOut()">Sign Out</button>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://your-project.supabase.co'
+    const SUPABASE_ANON_KEY = 'your-anon-key'
+    const API_BASE = 'https://quack-xzno.onrender.com'
+    const STRIPE_PUBLISHABLE_KEY = 'pk_test_...'
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    const stripe = Stripe(STRIPE_PUBLISHABLE_KEY)
+
+    let currentApiKey = ''
+
+    async function sendMagicLink() {
+      const email = document.getElementById('email').value
+      const { error } = await supabase.auth.signInWithOtp({ email })
+      if (error) alert(error.message)
+      else alert('Check your email for the magic link!')
+    }
+
+    async function loadDashboard() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        document.getElementById('login').style.display = 'block'
+        document.getElementById('dashboard').style.display = 'none'
+        return
+      }
+      document.getElementById('login').style.display = 'none'
+      document.getElementById('dashboard').style.display = 'block'
+      const token = session.access_token
+
+      const meRes = await fetch(`${API_BASE}/portal/me`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const meData = await meRes.json()
+      currentApiKey = meData.api_key
+      document.getElementById('apiKey').innerText = currentApiKey
+      document.getElementById('credits').innerText = meData.credits_remaining
+
+      const usageRes = await fetch(`${API_BASE}/portal/usage`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const usageData = await usageRes.json()
+      const labels = Object.keys(usageData.daily_usage)
+      const values = Object.values(usageData.daily_usage)
+      new Chart(document.getElementById('usageChart'), {
+        type: 'bar',
+        data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#007bff' }] },
+        options: { scales: { y: { beginAtZero: true } } }
+      })
+
+      const invRes = await fetch(`${API_BASE}/portal/invoices`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const invData = await invRes.json()
+      const list = document.getElementById('invoiceList')
+      list.innerHTML = ''
+      invData.invoices.forEach(inv => {
+        const li = document.createElement('li')
+        li.textContent = `$${(inv.amount_total/100).toFixed(2)} – ${inv.credits_purchased} credits – ${new Date(inv.created_at).toLocaleDateString()}`
+        list.appendChild(li)
+      })
+    }
+
+    async function rotateKey() {
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      const res = await fetch(`${API_BASE}/portal/rotate-key`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      document.getElementById('apiKey').innerText = data.new_api_key
+      currentApiKey = data.new_api_key
+      alert('API key rotated! Old key is now deactivated.')
+    }
+
+    function copyKey() {
+      navigator.clipboard.writeText(currentApiKey)
+      alert('API key copied!')
+    }
+
+    async function buyCredits() {
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      const res = await fetch(`${API_BASE}/portal/create-checkout-session`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+      } else {
+        alert('Could not start checkout')
+      }
+    }
+
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (session) loadDashboard()
+    })
+    window.onload = loadDashboard
+  </script>
+</body>
+</html>
