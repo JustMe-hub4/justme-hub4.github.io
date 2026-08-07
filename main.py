@@ -17,15 +17,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ------------------------------
-# Logging
-# ------------------------------
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("fhir-interop")
 
-# ------------------------------
-# FastAPI app
-# ------------------------------
 app = FastAPI(title="FHIR Interop Engine", version="2.0.0")
 
 app.add_middleware(
@@ -35,16 +29,12 @@ app.add_middleware(
     allow_headers=["X-API-Key", "X-Idempotency-Key", "Content-Type"],
 )
 
-# ------------------------------
-# Supabase connection
-# ------------------------------
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("SUPABASE_URL and SUPABASE_KEY must be set")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# In‑memory rate limiter
 rate_limit_store: Dict[str, list] = {}
 RATE_LIMIT_WINDOW = 60
 RATE_LIMIT_MAX = 120
@@ -130,11 +120,6 @@ async def health():
     except Exception as e:
         return {"status": "error", "detail": str(e)}
 
-@app.post("/v1/translate")
-async def translate(request: Request):
-    api_key = request.headers.get("X-API-Key")
-    if not api_key:
-        raise HTTPException(status_code=401, detail="X-API-Key header missing")
 @app.get("/credits")
 async def check_credits(api_key: str):
     resp = supabase.table("api_keys").select("credits_remaining").eq("key", api_key).execute()
@@ -142,6 +127,11 @@ async def check_credits(api_key: str):
         return {"credits_remaining": resp.data[0]["credits_remaining"]}
     raise HTTPException(status_code=404, detail="API key not found")
 
+@app.post("/v1/translate")
+async def translate(request: Request):
+    api_key = request.headers.get("X-API-Key")
+    if not api_key:
+        raise HTTPException(status_code=401, detail="X-API-Key header missing")
 
     if not check_rate_limit(api_key):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
