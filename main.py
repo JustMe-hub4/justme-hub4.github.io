@@ -190,3 +190,4 @@ async def translate(request: Request):
         except Exception as refund_error:
             logger.critical(f"Refund failed after translation error: {refund_error}")
         raise HTTPException(status_code=422, detail=f"HL7 transformation failed: {str(e)}")
+# Idempotency fix v2
