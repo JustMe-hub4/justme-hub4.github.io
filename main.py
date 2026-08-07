@@ -150,10 +150,30 @@ async def translate(request: Request):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
     idem_key = request.headers.get("X-Idempotency-Key")
+    idem_inserted = False
     if idem_key:
-        cached = check_idempotency(api_key, idem_key)
-        if cached:
-            return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
+        # Attempt atomic insert of idempotency record. Only the first request with this key will succeed.
+        try:
+            insert_resp = supabase.table("idempotency_store").insert({
+                "api_key": api_key,
+                "idempotency_key": idem_key,
+                "response": {}  # placeholder, will be updated after processing
+            }, returning="response").execute()
+            if not insert_resp.data:
+                # Insert did not produce a new row; likely a conflict (replay)
+                # Fetch the actual cached response now
+                cached = check_idempotency(api_key, idem_key)
+                if cached:
+                    return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
+                # If no cached (should not happen), fall through to process (but this is unsafe, so we abort)
+                raise HTTPException(status_code=409, detail="Idempotency conflict, but no cached response found")
+            # Insert succeeded: mark that we need to update the placeholder later
+            idem_inserted = True
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Idempotency insert error: {e}")
+            raise HTTPException(status_code=503, detail="Idempotency service error")
 
     if not api_key_exists(api_key):
         raise HTTPException(status_code=401, detail="Invalid API key")
@@ -190,7 +210,12 @@ async def translate(request: Request):
         }).execute()
 
         if idem_key:
-            store_idempotency(api_key, idem_key, fhir_output)
+            # Update the previously inserted idempotency record with the actual response
+            if idem_inserted:
+                try:
+                    supabase.table("idempotency_store").update({"response": fhir_output}).eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
+                except Exception as e:
+                    logger.error(f"Idempotency update error: {e}")
 
         return fhir_output
 
