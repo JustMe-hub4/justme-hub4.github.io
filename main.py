@@ -1,7 +1,6 @@
 import os
 import logging
 import uuid
-import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict
 
@@ -21,7 +20,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("fhir-interop")
 
-app = FastAPI(title="FHIR Interop Engine", version="2.1.0")
+app = FastAPI(title="FHIR Interop Engine", version="2.3.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -41,9 +40,6 @@ ADMIN_KEY = os.getenv("ADMIN_KEY", "")
 rate_limit_store: Dict[str, list] = {}
 RATE_LIMIT_WINDOW = 60
 RATE_LIMIT_MAX = 120
-
-# In‑memory lock per idempotency key (serialises concurrent requests with same key)
-idem_locks: Dict[str, asyncio.Lock] = {}
 
 def check_rate_limit(api_key: str) -> bool:
     now = datetime.now(timezone.utc)
@@ -144,86 +140,91 @@ async def translate(request: Request):
 
     idem_key = request.headers.get("X-Idempotency-Key")
 
-    # ---------- Idempotency with async lock ----------
     if idem_key:
-        # Get or create a lock for this idempotency key
-        if idem_key not in idem_locks:
-            idem_locks[idem_key] = asyncio.Lock()
-        lock = idem_locks[idem_key]
+        # ---------- Atomic idempotency using unique insert ----------
+        # 1. Try to insert a placeholder that marks this idempotency key as "claimed"
+        try:
+            insert_res = supabase.table("idempotency_store").insert({
+                "api_key": api_key,
+                "idempotency_key": idem_key,
+                "response": None   # placeholder
+            }).execute()
+            # If insert succeeded, we are the only request allowed to proceed
+            idem_inserted = True
+        except Exception as e:
+            # Insert failed – likely a unique violation (replay)
+            idem_inserted = False
 
-        # Serialise: only one request with this idempotency key can proceed
-        async with lock:
-            # First check if the response already exists (previous locked request may have created it)
-            cached = check_idempotency(api_key, idem_key)
-            if cached:
-                return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
+        if not idem_inserted:
+            # Replay: fetch the stored response (which may be still None if the first request is processing)
+            stored = check_idempotency(api_key, idem_key)
+            if stored is not None:
+                return Response(content=stored, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
+            else:
+                # First request hasn't finished yet; tell client to retry
+                raise HTTPException(status_code=409, detail="Request is being processed, retry with the same idempotency key")
 
-            # Proceed with deduction and processing
-            # (the rest of the code is inside the lock so only one request executes it)
-            # Continue below outside the "if idem_key" block, but we need to pass idem_key downstream.
-            # We'll refactor the rest of the function to be a helper that we call from here and outside.
-            # For simplicity, we'll just duplicate the logic inside the lock.
-            # But to avoid code duplication, we'll move the core logic into an inner function.
+        # We successfully inserted the placeholder; now we can safely deduct and process.
+        # If anything fails after this, we must refund and update the placeholder accordingly.
+        try:
+            # Validate key
+            if not api_key_exists(api_key):
+                raise HTTPException(status_code=401, detail="Invalid API key")
 
-            # We'll handle it by setting a flag and keeping idem_key available.
-            # Let's use a small inner function.
-            async def process_translation(api_key, idem_key):
-                # Validate key
-                if not api_key_exists(api_key):
-                    raise HTTPException(status_code=401, detail="Invalid API key")
-
-                # Deduct credit
-                try:
-                    deduct_resp = supabase.rpc("deduct_healthcare_credit", {"target_key": api_key}).execute()
-                    if not deduct_resp.data:
-                        raise HTTPException(status_code=402, detail="Insufficient credits or key invalid")
-                except HTTPException:
-                    raise
-                except Exception as e:
-                    logger.error(f"Deduction failed: {e}")
-                    raise HTTPException(status_code=503, detail="Service temporarily unavailable (credit check)")
-
-                # Read body
-                body = await request.body()
-                if len(body) > 1_048_576:
-                    supabase.rpc("refund_healthcare_credit", {"target_key": api_key}).execute()
-                    raise HTTPException(status_code=413, detail="Payload too large (max 1 MB)")
-
-                try:
-                    hl7_text = body.decode("utf-8")
-                except UnicodeDecodeError:
-                    hl7_text = body.decode("latin-1")
-                    logger.warning(f"Non-UTF-8 payload from key {api_key[:4]}...")
-
-                # Translate
-                fhir_output = transform_hl7_to_fhir(hl7_text)
-
-                # Log
-                supabase.table("translation_logs").insert({
-                    "api_key": api_key,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                    "msg_type": hl7_text[:3],
-                    "success": True
-                }).execute()
-
-                # Store idempotency
-                if idem_key:
-                    store_idempotency(api_key, idem_key, fhir_output)
-
-                return fhir_output
-
+            # Deduct credit
             try:
-                result = await process_translation(api_key, idem_key)
-                return result
+                deduct_resp = supabase.rpc("deduct_healthcare_credit", {"target_key": api_key}).execute()
+                if not deduct_resp.data:
+                    raise HTTPException(status_code=402, detail="Insufficient credits or key invalid")
             except HTTPException:
                 raise
             except Exception as e:
-                logger.error(f"Translation error: {e}")
-                try:
-                    supabase.rpc("refund_healthcare_credit", {"target_key": api_key}).execute()
-                except Exception as refund_error:
-                    logger.critical(f"Refund failed: {refund_error}")
-                raise HTTPException(status_code=422, detail=f"HL7 transformation failed: {str(e)}")
+                logger.error(f"Deduction failed: {e}")
+                raise HTTPException(status_code=503, detail="Service temporarily unavailable (credit check)")
+
+            # Read body
+            body = await request.body()
+            if len(body) > 1_048_576:
+                supabase.rpc("refund_healthcare_credit", {"target_key": api_key}).execute()
+                # Update placeholder with error status? Not needed; just delete? We'll leave as is but return error.
+                # Remove placeholder so future replays can retry?
+                supabase.table("idempotency_store").delete().eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
+                raise HTTPException(status_code=413, detail="Payload too large (max 1 MB)")
+
+            try:
+                hl7_text = body.decode("utf-8")
+            except UnicodeDecodeError:
+                hl7_text = body.decode("latin-1")
+                logger.warning(f"Non-UTF-8 payload from key {api_key[:4]}...")
+
+            # Translate
+            fhir_output = transform_hl7_to_fhir(hl7_text)
+
+            # Log
+            supabase.table("translation_logs").insert({
+                "api_key": api_key,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "msg_type": hl7_text[:3],
+                "success": True
+            }).execute()
+
+            # Update the placeholder with the real response
+            supabase.table("idempotency_store").update({"response": fhir_output}).eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
+
+            return fhir_output
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Translation error: {e}")
+            # Refund credit
+            try:
+                supabase.rpc("refund_healthcare_credit", {"target_key": api_key}).execute()
+            except Exception as refund_error:
+                logger.critical(f"Refund failed: {refund_error}")
+            # Remove the placeholder so the client can retry with the same idempotency key
+            supabase.table("idempotency_store").delete().eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
+            raise HTTPException(status_code=422, detail=f"HL7 transformation failed: {str(e)}")
 
     # ---------- No idempotency key: normal flow ----------
     if not api_key_exists(api_key):
