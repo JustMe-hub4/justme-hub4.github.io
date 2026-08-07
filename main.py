@@ -135,6 +135,13 @@ async def translate(request: Request):
     api_key = request.headers.get("X-API-Key")
     if not api_key:
         raise HTTPException(status_code=401, detail="X-API-Key header missing")
+@app.get("/credits")
+async def check_credits(api_key: str):
+    resp = supabase.table("api_keys").select("credits_remaining").eq("key", api_key).execute()
+    if resp.data:
+        return {"credits_remaining": resp.data[0]["credits_remaining"]}
+    raise HTTPException(status_code=404, detail="API key not found")
+
 
     if not check_rate_limit(api_key):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
