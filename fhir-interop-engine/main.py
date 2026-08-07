@@ -1,0 +1,191 @@
+import os
+import logging
+import uuid
+from datetime import datetime, timezone, timedelta
+from typing import Optional, Dict
+
+from fastapi import FastAPI, Request, HTTPException, status, Response
+from fastapi.middleware.cors import CORSMiddleware
+from supabase import create_client, Client
+from hl7apy.parser import parse_message
+from fhir.resources.patient import Patient
+from fhir.resources.encounter import Encounter
+from fhir.resources.bundle import Bundle, BundleEntry, BundleEntryRequest
+from fhir.resources.humanname import HumanName
+from fhir.resources.identifier import Identifier
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# ------------------------------
+# Logging
+# ------------------------------
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("fhir-interop")
+
+# ------------------------------
+# FastAPI app
+# ------------------------------
+app = FastAPI(title="FHIR Interop Engine", version="2.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["POST", "GET"],
+    allow_headers=["X-API-Key", "X-Idempotency-Key", "Content-Type"],
+)
+
+# ------------------------------
+# Supabase connection
+# ------------------------------
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError("SUPABASE_URL and SUPABASE_KEY must be set")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# In‑memory rate limiter
+rate_limit_store: Dict[str, list] = {}
+RATE_LIMIT_WINDOW = 60
+RATE_LIMIT_MAX = 120
+
+def check_rate_limit(api_key: str) -> bool:
+    now = datetime.now(timezone.utc)
+    if api_key not in rate_limit_store:
+        rate_limit_store[api_key] = []
+    rate_limit_store[api_key] = [ts for ts in rate_limit_store[api_key] if now - ts < timedelta(seconds=RATE_LIMIT_WINDOW)]
+    if len(rate_limit_store[api_key]) >= RATE_LIMIT_MAX:
+        return False
+    rate_limit_store[api_key].append(now)
+    return True
+
+def api_key_exists(api_key: str) -> bool:
+    try:
+        resp = supabase.table("api_keys").select("key").eq("key", api_key).execute()
+        return len(resp.data) > 0
+    except Exception as e:
+        logger.error(f"Supabase error checking key: {e}")
+        return False
+
+def check_idempotency(api_key: str, idem_key: str) -> Optional[dict]:
+    try:
+        resp = supabase.table("idempotency_store").select("response") \
+            .eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
+        if resp.data:
+            return resp.data[0]["response"]
+    except Exception as e:
+        logger.error(f"Idempotency check error: {e}")
+    return None
+
+def store_idempotency(api_key: str, idem_key: str, response_data: dict):
+    try:
+        supabase.table("idempotency_store").insert({
+            "api_key": api_key,
+            "idempotency_key": idem_key,
+            "response": response_data,
+        }).execute()
+    except Exception as e:
+        logger.error(f"Idempotency store error: {e}")
+
+def transform_hl7_to_fhir(hl7_message: str) -> dict:
+    clean = hl7_message.replace("\n", "\r").strip()
+    msg = parse_message(clean)
+    pid = msg.PID
+    mrn = pid.PID_3[0].value if pid.PID_3 else str(uuid.uuid4())
+    family = pid.PID_5[0].value if pid.PID_5 else "Unknown"
+    given = pid.PID_5[1].value if len(pid.PID_5) > 1 else "Unknown"
+    dob = pid.PID_7.value if pid.PID_7 else "19700101"
+
+    pv1 = msg.PV1 if hasattr(msg, "PV1") else None
+    encounter_id = pv1.PV1_19.value if pv1 and pv1.PV1_19 else str(uuid.uuid4())
+
+    patient = Patient(
+        id=str(uuid.uuid4()),
+        identifier=[Identifier(system="urn:oid:2.16.840.1.113883.19.5", value=str(mrn))],
+        name=[HumanName(family=str(family), given=[str(given)])],
+        birthDate=datetime.strptime(str(dob), "%Y%m%d").date() if len(str(dob)) == 8 else None
+    )
+    encounter = Encounter(
+        id=str(uuid.uuid4()),
+        status="completed",
+        subject={"reference": f"Patient/{patient.id}"},
+        identifier=[Identifier(system="urn:oid:2.16.840.1.113883.19.5", value=str(encounter_id))]
+    )
+    entries = [
+        BundleEntry(resource=patient, request=BundleEntryRequest(method="POST", url="Patient")),
+        BundleEntry(resource=encounter, request=BundleEntryRequest(method="POST", url="Encounter"))
+    ]
+    bundle = Bundle(type="batch", entry=entries, id=str(uuid.uuid4()))
+    return bundle.dict()
+
+@app.get("/health")
+async def health():
+    try:
+        supabase.table("api_keys").select("key").limit(1).execute()
+        return {"status": "ok", "db": "connected"}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+@app.post("/v1/translate")
+async def translate(request: Request):
+    api_key = request.headers.get("X-API-Key")
+    if not api_key:
+        raise HTTPException(status_code=401, detail="X-API-Key header missing")
+
+    if not check_rate_limit(api_key):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
+    idem_key = request.headers.get("X-Idempotency-Key")
+    if idem_key:
+        cached = check_idempotency(api_key, idem_key)
+        if cached:
+            return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
+
+    if not api_key_exists(api_key):
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    try:
+        deduct_resp = supabase.rpc("deduct_healthcare_credit", {"target_key": api_key}).execute()
+        if not deduct_resp.data:
+            raise HTTPException(status_code=402, detail="Insufficient credits or key invalid")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Deduction failed: {e}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable (credit check)")
+
+    try:
+        body = await request.body()
+        if len(body) > 1_048_576:
+            supabase.rpc("refund_healthcare_credit", {"target_key": api_key}).execute()
+            raise HTTPException(status_code=413, detail="Payload too large (max 1 MB)")
+
+        try:
+            hl7_text = body.decode("utf-8")
+        except UnicodeDecodeError:
+            hl7_text = body.decode("latin-1")
+            logger.warning(f"Non-UTF-8 payload from key {api_key[:4]}...")
+
+        fhir_output = transform_hl7_to_fhir(hl7_text)
+
+        supabase.table("translation_logs").insert({
+            "api_key": api_key,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "msg_type": hl7_text[:3],
+            "success": True
+        }).execute()
+
+        if idem_key:
+            store_idempotency(api_key, idem_key, fhir_output)
+
+        return fhir_output
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Translation error: {e}")
+        try:
+            supabase.rpc("refund_healthcare_credit", {"target_key": api_key}).execute()
+        except Exception as refund_error:
+            logger.critical(f"Refund failed after translation error: {refund_error}")
+        raise HTTPException(status_code=422, detail=f"HL7 transformation failed: {str(e)}")
