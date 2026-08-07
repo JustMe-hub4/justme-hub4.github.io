@@ -17,24 +17,37 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ------------------------------
+# Logging
+# ------------------------------
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("fhir-interop")
 
+# ------------------------------
+# FastAPI app
+# ------------------------------
 app = FastAPI(title="FHIR Interop Engine", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["POST", "GET"],
-    allow_headers=["X-API-Key", "X-Idempotency-Key", "Content-Type"],
+    allow_headers=["X-API-Key", "X-Idempotency-Key", "Content-Type", "X-Admin-Key"],
 )
 
+# ------------------------------
+# Supabase connection
+# ------------------------------
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("SUPABASE_URL and SUPABASE_KEY must be set")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+# Admin key for cleanup endpoint
+ADMIN_KEY = os.getenv("ADMIN_KEY", "")
+
+# In‑memory rate limiter
 rate_limit_store: Dict[str, list] = {}
 RATE_LIMIT_WINDOW = 60
 RATE_LIMIT_MAX = 120
@@ -190,4 +203,19 @@ async def translate(request: Request):
         except Exception as refund_error:
             logger.critical(f"Refund failed after translation error: {refund_error}")
         raise HTTPException(status_code=422, detail=f"HL7 transformation failed: {str(e)}")
-# Idempotency fix v2
+
+@app.post("/admin/cleanup")
+async def cleanup_logs(request: Request):
+    admin_key = request.headers.get("X-Admin-Key")
+    if not admin_key or admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    try:
+        # Delete translation logs older than 7 days
+        supabase.table("translation_logs").delete().lt("created_at", "now() - interval '7 days'").execute()
+        # Delete idempotency entries older than 24 hours
+        supabase.table("idempotency_store").delete().lt("created_at", "now() - interval '1 day'").execute()
+        return {"status": "ok", "message": "Cleanup completed"}
+    except Exception as e:
+        logger.error(f"Cleanup failed: {e}")
+        raise HTTPException(status_code=500, detail="Cleanup failed")
