@@ -55,7 +55,7 @@
     const API_BASE = 'https://quack-xzno.onrender.com'
     const STRIPE_PUBLISHABLE_KEY = 'pk_test_51Rop3yIUjoQtwpInfxgeUgbRyoJ3NPDBseT2iRIhrQC3HYhrWPwtR9e8DzLiaj9LFIvb9fgR5xNiuDbrG9gMptKP00e9HvvXNY'
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-    const stripe = Stripe(STRIPE_PUBLISHABLE_KEY)
+    let stripe = null; if (typeof Stripe !== 'undefined') { stripe = Stripe(STRIPE_PUBLISHABLE_KEY); }
     let currentApiKey = ''
     async function sendMagicLink() {
       const email = document.getElementById('email').value
