@@ -1,0 +1,33 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare site folder and inject secrets
+        run: |
+          set -e
+          mkdir -p site
+          cp portal.html site/index.html
+          # Replace placeholders with repository secrets
+          sed -i "s|https://your-project.supabase.co|${{ secrets.SUPABASE_URL }}|g" site/index.html
+          sed -i "s|your-anon-key|${{ secrets.SUPABASE_ANON_KEY }}|g" site/index.html
+          sed -i "s|https://quack-xzno.onrender.com|${{ secrets.API_BASE }}|g" site/index.html
+          sed -i "s|pk_test_...|${{ secrets.STRIPE_PUBLISHABLE_KEY }}|g" site/index.html
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          publish_branch: gh-pages
