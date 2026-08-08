@@ -1,12 +1,15 @@
 import os
 import logging
 import uuid
+import json
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict
+from collections import defaultdict
 
 from pydantic import BaseModel
-from fastapi import FastAPI, Request, HTTPException, status, Response
+from fastapi import FastAPI, Request, HTTPException, status, Response, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer
 from supabase import create_client, Client
 from hl7apy.parser import parse_message
 from fhir.resources.patient import Patient
@@ -15,6 +18,7 @@ from fhir.resources.bundle import Bundle, BundleEntry, BundleEntryRequest
 from fhir.resources.humanname import HumanName
 from fhir.resources.identifier import Identifier
 from dotenv import load_dotenv
+import stripe
 
 load_dotenv()
 
@@ -27,9 +31,12 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["POST", "GET"],
-    allow_headers=["X-API-Key", "X-Idempotency-Key", "Content-Type", "X-Admin-Key"],
+    allow_headers=["X-API-Key", "X-Idempotency-Key", "Content-Type", "X-Admin-Key", "Authorization"],
 )
 
+# ------------------------------
+# Supabase & Stripe config
+# ------------------------------
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -37,7 +44,20 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "sk_test_...")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_...")
+stripe.api_key = STRIPE_SECRET_KEY
 
+# Map your actual Stripe Price IDs to credit amounts
+PRICE_CREDIT_MAP = {
+    "price_1U1xzUIUjoQtwpInIy0o6u1O": 100,    # Pay‑as‑you‑go: $30 for 100 credits
+    "price_1U1xzUIUjoQtwpInNFq6TRCU": 10000,  # Volume Pack: $2000 for 10,000 credits
+    "price_1U1xzUIUjoQtwpInL8G3EBZX": 75000,  # Enterprise: $9000 for 75,000 credits
+}
+
+# ------------------------------
+# Rate limiter & helpers
+# ------------------------------
 rate_limit_store: Dict[str, list] = {}
 RATE_LIMIT_WINDOW = 60
 RATE_LIMIT_MAX = 120
@@ -115,6 +135,7 @@ def transform_hl7_to_fhir(hl7_message: str) -> dict:
     bundle = Bundle(type="batch", entry=entries, id=str(uuid.uuid4()))
     return bundle.dict()
 
+# -------------------- Core Endpoints --------------------
 @app.get("/health")
 async def health():
     try:
@@ -209,57 +230,122 @@ async def cleanup_logs(request: Request):
         raise HTTPException(status_code=500, detail="Cleanup failed")
 
 # -------------------- Portal Endpoints --------------------
-from fastapi.security import HTTPBearer
-from fastapi import Depends
-
 security = HTTPBearer()
 
 async def get_current_user(request: Request):
-    """Validate Supabase JWT from Authorization header and return user."""
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid token")
     token = auth_header.split(" ")[1]
     try:
-        # Use Supabase to get user from JWT
         user = supabase.auth.get_user(token)
         return user
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+class CheckoutRequest(BaseModel):
+    price_id: str
+
 @app.get("/portal/me")
-async def portal_me(request: Request, user = Depends(get_current_user)):
-    """Return current user's API key and credit balance."""
+async def portal_me(user = Depends(get_current_user)):
     user_id = user.user.id
-    # Get API key from users table
-    user_resp = supabase.table("users").select("api_key").eq("id", user_id).execute()
-    if not user_resp.data:
-        raise HTTPException(status_code=404, detail="User not found")
-    api_key = user_resp.data[0]["api_key"]
-    # Get credits
-    credit_resp = supabase.table("api_keys").select("credits_remaining").eq("key", api_key).execute()
-    credits = credit_resp.data[0]["credits_remaining"] if credit_resp.data else 0
-    return {"api_key": api_key, "credits_remaining": credits}
+    key_resp = supabase.table("api_keys").select("key,credits_remaining") \
+        .eq("user_id", user_id).eq("active", True).execute()
+    if not key_resp.data:
+        raise HTTPException(status_code=404, detail="No active API key found")
+    active_key = key_resp.data[0]
+    return {"api_key": active_key["key"], "credits_remaining": active_key["credits_remaining"]}
+
+@app.post("/portal/rotate-key")
+async def rotate_key(user = Depends(get_current_user)):
+    user_id = user.user.id
+    supabase.table("api_keys").update({"active": False}).eq("user_id", user_id).eq("active", True).execute()
+    new_key = os.urandom(16).hex()
+    supabase.table("api_keys").insert({
+        "key": new_key,
+        "credits_remaining": 0,
+        "user_id": user_id,
+        "active": True
+    }).execute()
+    supabase.table("users").update({"api_key": new_key}).eq("id", user_id).execute()
+    return {"new_api_key": new_key}
 
 @app.get("/portal/usage")
-async def portal_usage(request: Request, user = Depends(get_current_user)):
-    """Return daily usage counts for the last 7 days."""
+async def portal_usage(user = Depends(get_current_user)):
     user_id = user.user.id
-    user_resp = supabase.table("users").select("api_key").eq("id", user_id).execute()
-    if not user_resp.data:
-        raise HTTPException(status_code=404, detail="User not found")
-    api_key = user_resp.data[0]["api_key"]
-    # Query translation_logs for the last 7 days, grouped by date
+    key_resp = supabase.table("api_keys").select("key") \
+        .eq("user_id", user_id).eq("active", True).execute()
+    if not key_resp.data:
+        return {"daily_usage": {}}
+    api_key = key_resp.data[0]["key"]
     result = supabase.table("translation_logs") \
-        .select("created_at", count="exact") \
+        .select("created_at") \
         .eq("api_key", api_key) \
         .gte("created_at", "now() - interval '7 days'") \
         .order("created_at", desc=False) \
         .execute()
-    # Simple grouping in Python (Supabase may not do date grouping easily)
-    from collections import defaultdict
     daily = defaultdict(int)
     for row in result.data:
-        date_str = row["created_at"][:10]  # YYYY-MM-DD
+        date_str = row["created_at"][:10]
         daily[date_str] += 1
     return {"daily_usage": dict(sorted(daily.items()))}
+
+@app.post("/portal/create-checkout-session")
+async def create_checkout_session(req: CheckoutRequest, user = Depends(get_current_user)):
+    price_id = req.price_id
+    if price_id not in PRICE_CREDIT_MAP:
+        raise HTTPException(status_code=400, detail="Invalid price ID")
+    credits = PRICE_CREDIT_MAP[price_id]
+    user_id = user.user.id
+    user_info = supabase.auth.admin.get_user_by_id(user_id)
+    customer_email = user_info.user.email if user_info else "partner@example.com"
+    try:
+        session = stripe.checkout.Session.create(
+            line_items=[{"price": price_id, "quantity": 1}],
+            mode="payment",
+            success_url="https://your-portal-url.com/?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url="https://your-portal-url.com/",
+            customer_email=customer_email,
+            metadata={"user_id": user_id, "credits": str(credits)}
+        )
+        return {"url": session.url}
+    except Exception as e:
+        logger.error(f"Stripe session error: {e}")
+        raise HTTPException(status_code=500, detail="Could not create payment session")
+
+@app.post("/portal/stripe-webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        user_id = session.get("metadata", {}).get("user_id")
+        credits_str = session.get("metadata", {}).get("credits", "0")
+        if not user_id:
+            return {"status": "ignored"}
+        credits_to_add = int(credits_str)
+        supabase.table("api_keys").update({
+            "credits_remaining": supabase.raw(f"credits_remaining + {credits_to_add}")
+        }).eq("user_id", user_id).eq("active", True).execute()
+        supabase.table("stripe_payments").insert({
+            "user_id": user_id,
+            "stripe_checkout_session_id": session["id"],
+            "amount_total": session["amount_total"],
+            "credits_purchased": credits_to_add,
+            "status": "completed"
+        }).execute()
+        logger.info(f"Credits added for user {user_id}: +{credits_to_add}")
+    return {"status": "success"}
+
+@app.get("/portal/invoices")
+async def portal_invoices(user = Depends(get_current_user)):
+    user_id = user.user.id
+    resp = supabase.table("stripe_payments").select("*") \
+        .eq("user_id", user_id).order("created_at", desc=True).execute()
+    return {"invoices": resp.data}
