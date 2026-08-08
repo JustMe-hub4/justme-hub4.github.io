@@ -54,103 +54,105 @@
   </div>
 
   <script>
-    const SUPABASE_URL = 'https://your-project.supabase.co'
-    const SUPABASE_ANON_KEY = 'your-anon-key'
-    const API_BASE = 'https://quack-xzno.onrender.com'
-    const STRIPE_PUBLISHABLE_KEY = 'pk_test_...'
+  const SUPABASE_URL = 'https://your-project.supabase.co'
+  const SUPABASE_ANON_KEY = 'your-anon-key'
+  const API_BASE = 'https://quack-xzno.onrender.com'
+  const STRIPE_PUBLISHABLE_KEY = 'pk_test_...'
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-    const stripe = Stripe(STRIPE_PUBLISHABLE_KEY)
+  // create a uniquely named client to avoid collisions with other scripts/extensions
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  const stripe = Stripe(STRIPE_PUBLISHABLE_KEY)
 
-    let currentApiKey = ''
+  let currentApiKey = ''
 
-    async function sendMagicLink() {
-      const email = document.getElementById('email').value
-      const { error } = await supabase.auth.signInWithOtp({ email })
-      if (error) alert(error.message)
-      else alert('Check your email for the magic link!')
+  async function sendMagicLink() {
+    const email = document.getElementById('email').value
+    const { error } = await supabaseClient.auth.signInWithOtp({ email })
+    if (error) alert(error.message)
+    else alert('Check your email for the magic link!')
+  }
+
+  async function loadDashboard() {
+    const { data: { session } } = await supabaseClient.auth.getSession()
+    if (!session) {
+      document.getElementById('login').style.display = 'block'
+      document.getElementById('dashboard').style.display = 'none'
+      return
     }
+    document.getElementById('login').style.display = 'none'
+    document.getElementById('dashboard').style.display = 'block'
+    const token = session.access_token
 
-    async function loadDashboard() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        document.getElementById('login').style.display = 'block'
-        document.getElementById('dashboard').style.display = 'none'
-        return
-      }
-      document.getElementById('login').style.display = 'none'
-      document.getElementById('dashboard').style.display = 'block'
-      const token = session.access_token
-
-      const meRes = await fetch(`${API_BASE}/portal/me`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      const meData = await meRes.json()
-      currentApiKey = meData.api_key
-      document.getElementById('apiKey').innerText = currentApiKey
-      document.getElementById('credits').innerText = meData.credits_remaining
-
-      const usageRes = await fetch(`${API_BASE}/portal/usage`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      const usageData = await usageRes.json()
-      const labels = Object.keys(usageData.daily_usage)
-      const values = Object.values(usageData.daily_usage)
-      new Chart(document.getElementById('usageChart'), {
-        type: 'bar',
-        data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#007bff' }] },
-        options: { scales: { y: { beginAtZero: true } } }
-      })
-
-      const invRes = await fetch(`${API_BASE}/portal/invoices`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      const invData = await invRes.json()
-      const list = document.getElementById('invoiceList')
-      list.innerHTML = ''
-      invData.invoices.forEach(inv => {
-        const li = document.createElement('li')
-        li.textContent = `$${(inv.amount_total/100).toFixed(2)} – ${inv.credits_purchased} credits – ${new Date(inv.created_at).toLocaleDateString()}`
-        list.appendChild(li)
-      })
-    }
-
-    async function rotateKey() {
-      const token = (await supabase.auth.getSession()).data.session?.access_token
-      const res = await fetch(`${API_BASE}/portal/rotate-key`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      const data = await res.json()
-      document.getElementById('apiKey').innerText = data.new_api_key
-      currentApiKey = data.new_api_key
-      alert('API key rotated! Old key is now deactivated.')
-    }
-
-    function copyKey() {
-      navigator.clipboard.writeText(currentApiKey)
-      alert('API key copied!')
-    }
-
-    async function buyCredits(priceId) {
-      const token = (await supabase.auth.getSession()).data.session?.access_token
-      const res = await fetch(`${API_BASE}/portal/create-checkout-session`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ price_id: priceId })
-      })
-      const data = await res.json()
-      if (data.url) {
-        window.location.href = data.url
-      } else {
-        alert('Could not start checkout')
-      }
-    }
-
-    supabase.auth.onAuthStateChange((event, session) => {
-      if (session) loadDashboard()
+    const meRes = await fetch(`${API_BASE}/portal/me`, {
+      headers: { 'Authorization': `Bearer ${token}` }
     })
-    window.onload = loadDashboard
-  </script>
+    const meData = await meRes.json()
+    currentApiKey = meData.api_key
+    document.getElementById('apiKey').innerText = currentApiKey
+    document.getElementById('credits').innerText = meData.credits_remaining
+
+    const usageRes = await fetch(`${API_BASE}/portal/usage`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    const usageData = await usageRes.json()
+    const labels = Object.keys(usageData.daily_usage)
+    const values = Object.values(usageData.daily_usage)
+    new Chart(document.getElementById('usageChart'), {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#007bff' }] },
+      options: { scales: { y: { beginAtZero: true } } }
+    })
+
+    const invRes = await fetch(`${API_BASE}/portal/invoices`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    const invData = await invRes.json()
+    const list = document.getElementById('invoiceList')
+    list.innerHTML = ''
+    invData.invoices.forEach(inv => {
+      const li = document.createElement('li')
+      li.textContent = `$${(inv.amount_total/100).toFixed(2)} – ${inv.credits_purchased} credits – ${new Date(inv.created_at).toLocaleDateString()}`
+      list.appendChild(li)
+    })
+  }
+
+  async function rotateKey() {
+    const token = (await supabaseClient.auth.getSession()).data.session?.access_token
+    const res = await fetch(`${API_BASE}/portal/rotate-key`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    const data = await res.json()
+    document.getElementById('apiKey').innerText = data.new_api_key
+    currentApiKey = data.new_api_key
+    alert('API key rotated! Old key is now deactivated.')
+  }
+
+  function copyKey() {
+    navigator.clipboard.writeText(currentApiKey)
+    alert('API key copied!')
+  }
+
+  async function buyCredits(priceId) {
+    const token = (await supabaseClient.auth.getSession()).data.session?.access_token
+    const res = await fetch(`${API_BASE}/portal/create-checkout-session`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ price_id: priceId })
+    })
+    const data = await res.json()
+    if (data.url) {
+      window.location.href = data.url
+    } else {
+      alert('Could not start checkout')
+    }
+  }
+
+  // wire up auth state changes to reload the dashboard when a session appears
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (session) loadDashboard()
+  })
+  window.onload = loadDashboard
+</script>
 </body>
 </html>
