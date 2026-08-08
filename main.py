@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict
 
+from pydantic import BaseModel
 from fastapi import FastAPI, Request, HTTPException, status, Response
 from fastapi.middleware.cors import CORSMiddleware
 from supabase import create_client, Client
