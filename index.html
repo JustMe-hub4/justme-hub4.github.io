@@ -97,7 +97,13 @@
     input { width: 100%; padding: 10px; background: #162438; border: 1px solid #1E334A; border-radius: 6px; color: white; margin: 8px 0; }
     .key-display { font-family: monospace; background: #162438; padding: 10px; border-radius: 6px; word-break: break-all; }
     .flex-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
-  </style>
+  
+    .toast { padding: 12px 20px; border-radius: 8px; font-weight: 500; color: white; animation: slideIn 0.3s ease; }
+    .toast-success { background: #22C55E; }
+    .toast-error { background: #EF4444; }
+    .toast-info { background: #16C7D9; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+</style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4">
     let dailyUsage = {};
     async function fetchUsage() {
@@ -270,7 +276,7 @@ PID|1||123456||DOE^JOHN</textarea>
       else { el.textContent = currentApiKey.substring(0,12) + '••••••••••••••••••••••••'; document.getElementById('btn-show-key').textContent = 'Show'; }
     }
     function toggleKey() { apiKeyRevealed = !apiKeyRevealed; updateApiKeyDisplay(); }
-    function copyKey() { navigator.clipboard.writeText(currentApiKey); alert('API key copied!'); }
+    function copyKey() { navigator.clipboard.writeText(currentApiKey); showToast('API key copied!', 'success'); }
     function switchTab(tab) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
       const target = document.getElementById('tab-'+tab);
@@ -296,14 +302,14 @@ PID|1||123456||DOE^JOHN</textarea>
     async function rotateKey() {
       if (!confirm('Deactivate current key?')) return;
       const res = await fetch(`${API_BASE}/portal/rotate-key`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } });
-      if (res.ok) { const d = await res.json(); currentApiKey = d.new_api_key; apiKeyRevealed = true; updateApiKeyDisplay(); alert('Key rotated!'); }
-      else alert('Rotation failed.');
+      if (res.ok) { const d = await res.json(); currentApiKey = d.new_api_key; apiKeyRevealed = true; updateApiKeyDisplay(); showToast('Key rotated!', 'success'); }
+      else showToast('Rotation failed.', 'error');
     }
     async function buyCredits(priceId) {
-      if (!stripe) { alert('Payment system unavailable.'); return; }
+      if (!stripe) { showToast('Payment system unavailable.', 'error'); return; }
       const res = await fetch(`${API_BASE}/portal/create-checkout-session`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ price_id: priceId }) });
       if (res.ok) { const d = await res.json(); window.location.href = d.url; }
-      else alert('Could not start checkout.');
+      else showToast('Could not start checkout.', 'error');
     }
 
     document.getElementById('btn-login').addEventListener('click', async () => {
@@ -377,5 +383,7 @@ PID|1||123456||DOE^JOHN</textarea>
         </div>`;
     }
 </script>
+
+  <div id="toast-container" style="position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:2000;"></div>
 </body>
 </html>
