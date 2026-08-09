@@ -1,6 +1,7 @@
 import os
 import logging
 import uuid
+import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict
 from collections import defaultdict
@@ -159,34 +160,19 @@ async def translate(request: Request):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
     idem_key = request.headers.get("X-Idempotency-Key")
-    idem_inserted = False
     if idem_key:
-        # Try to insert placeholder; only the first request succeeds
-        try:
-            insert_res = supabase.table("idempotency_store").insert({
-                "api_key": api_key,
-                "idempotency_key": idem_key,
-                "response": None
-            }).execute()
-            if insert_res.data:
-                idem_inserted = True
-            else:
-                # Insert returned no data – likely conflict (replay)
-                cached = check_idempotency(api_key, idem_key)
-                if cached:
-                    return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
-                raise HTTPException(status_code=409, detail="Idempotency conflict, retry")
-        except HTTPException:
-            raise
-        except Exception as e:
-            # Insert failed – most likely a unique constraint violation (replay)
-            logger.warning(f"Idempotency insert conflict (likely replay): {e}")
-            # Fetch the cached response if it exists
+        # ----- In‑memory lock per idempotency key (serializes concurrent requests with the same key) -----
+        if not hasattr(app.state, 'idem_locks'):
+            app.state.idem_locks = {}
+        if idem_key not in app.state.idem_locks:
+            app.state.idem_locks[idem_key] = asyncio.Lock()
+        lock = app.state.idem_locks[idem_key]
+
+        async with lock:
+            # Now only one request with this idempotency key can enter this block
             cached = check_idempotency(api_key, idem_key)
             if cached:
                 return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
-            # If still no cached response, retry later
-            raise HTTPException(status_code=409, detail="Idempotency conflict, retry")
 
     if not api_key_exists(api_key):
         raise HTTPException(status_code=401, detail="Invalid API key")
@@ -222,11 +208,9 @@ async def translate(request: Request):
             "success": True
         }).execute()
 
-        if idem_key and idem_inserted:
-            try:
-                supabase.table("idempotency_store").update({"response": fhir_output}).eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
-            except Exception as e:
-                logger.error(f"Idempotency update error: {e}")
+        if idem_key:
+            # Store the response (upsert, as we always hold the lock)
+            store_idempotency(api_key, idem_key, fhir_output)
 
         return fhir_output
 
