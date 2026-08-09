@@ -161,15 +161,13 @@ async def translate(request: Request):
 
     idem_key = request.headers.get("X-Idempotency-Key")
     if idem_key:
-        # ----- In‑memory lock per idempotency key (serializes concurrent requests with the same key) -----
-        if not hasattr(app.state, 'idem_locks'):
-            app.state.idem_locks = {}
+        # Use the global lock store initialized at startup
         if idem_key not in app.state.idem_locks:
             app.state.idem_locks[idem_key] = asyncio.Lock()
         lock = app.state.idem_locks[idem_key]
 
         async with lock:
-            # Now only one request with this idempotency key can enter this block
+            # Only one request with this idempotency key can enter
             cached = check_idempotency(api_key, idem_key)
             if cached:
                 return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
