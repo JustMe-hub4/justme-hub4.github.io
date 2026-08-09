@@ -28,7 +28,6 @@
   </style>
 </head>
 <body>
-  <!-- LOGIN SECTION (static) -->
   <div id="login-container">
     <div id="login-box">
       <h1>FHIR Interop Engine</h1>
@@ -39,7 +38,6 @@
     </div>
   </div>
 
-  <!-- DASHBOARD SECTION (static, hidden by default) -->
   <div id="dashboard" class="hidden">
     <div class="sidebar">
       <h2>FHIR</h2>
@@ -48,7 +46,6 @@
       <a href="#" onclick="signOut()">Sign Out</a>
     </div>
     <div class="main">
-      <!-- Dashboard Tab -->
       <div id="tab-dashboard" class="tab-content">
         <h2>Dashboard</h2>
         <div class="card">
@@ -69,7 +66,6 @@
           <div id="invoice-list">No invoices yet.</div>
         </div>
       </div>
-      <!-- Billing Tab -->
       <div id="tab-billing" class="tab-content hidden">
         <h2>Buy Credits</h2>
         <div class="card">
@@ -89,176 +85,82 @@
   </div>
 
   <script>
-    // ---------- CONFIG ----------
     const SUPABASE_URL = 'https://lhgfolrupmsklrccirpj.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_4y3_i7S_YNCgOoEkbbVWRg_qXLBNlyf';
     const API_BASE = 'https://quack-xzno.onrender.com';
     const STRIPE_KEY = 'pk_test_51Rop3yIUjoQtwpInfxgeUgbRyoJ3NPDBseT2iRIhrQC3HYhrWPwtR9e8DzLiaj9LFIvb9fgR5xNiuDbrG9gMptKP00e9HvvXNY';
 
-    // ---------- CLIENTS ----------
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let stripe = null;
-    if (typeof Stripe !== 'undefined') {
-      stripe = Stripe(STRIPE_KEY);
-    }
+    if (typeof Stripe !== 'undefined') stripe = Stripe(STRIPE_KEY);
 
-    // ---------- STATE ----------
-    let session = null;
-    let currentApiKey = '';
-    let apiKeyRevealed = false;
-    let credits = 0;
-    let invoices = [];
+    let session = null, currentApiKey = '', apiKeyRevealed = false, credits = 0, invoices = [];
 
-    // ---------- HELPERS ----------
-    function showError(msg) {
-      document.getElementById('login-msg').textContent = msg;
-    }
-
-    function showToast(msg, type) {
-      alert(msg); // simple for now; we can add a toast later
-    }
-
-    function updateCreditDisplay() {
-      document.getElementById('credit-balance').textContent = credits.toLocaleString();
-    }
-
+    function updateCreditDisplay() { document.getElementById('credit-balance').textContent = credits.toLocaleString(); }
     function updateApiKeyDisplay() {
       const el = document.getElementById('api-key-display');
-      if (apiKeyRevealed) {
-        el.textContent = currentApiKey;
-        document.getElementById('btn-show-key').textContent = 'Hide';
-      } else {
-        el.textContent = currentApiKey.substring(0,12) + '••••••••••••••••••••••••';
-        document.getElementById('btn-show-key').textContent = 'Show';
-      }
+      if (apiKeyRevealed) { el.textContent = currentApiKey; document.getElementById('btn-show-key').textContent = 'Hide'; }
+      else { el.textContent = currentApiKey.substring(0,12) + '••••••••••••••••••••••••'; document.getElementById('btn-show-key').textContent = 'Show'; }
     }
-
-    function toggleKey() {
-      apiKeyRevealed = !apiKeyRevealed;
-      updateApiKeyDisplay();
-    }
-
-    function copyKey() {
-      navigator.clipboard.writeText(currentApiKey);
-      alert('API key copied!');
-    }
-
-    async function fetchProfile() {
-      const res = await fetch(`${API_BASE}/portal/me`, {
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        credits = data.credits_remaining;
-        currentApiKey = data.api_key;
-        updateCreditDisplay();
-        updateApiKeyDisplay();
-      }
-    }
-
-    async function fetchInvoices() {
-      const res = await fetch(`${API_BASE}/portal/invoices`, {
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        invoices = data.invoices || [];
-        const list = document.getElementById('invoice-list');
-        if (invoices.length === 0) {
-          list.textContent = 'No invoices yet.';
-        } else {
-          list.innerHTML = invoices.map(inv => 
-            `${new Date(inv.created_at).toLocaleDateString()} - $${(inv.amount_total/100).toFixed(2)} - ${inv.credits_purchased} credits`
-          ).join('<br>');
-        }
-      }
-    }
-
-    async function rotateKey() {
-      if (!confirm('Deactivate current key? This cannot be undone.')) return;
-      const res = await fetch(`${API_BASE}/portal/rotate-key`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        currentApiKey = data.new_api_key;
-        apiKeyRevealed = true;
-        updateApiKeyDisplay();
-        alert('API key rotated!');
-      } else {
-        alert('Rotation failed.');
-      }
-    }
-
-    async function buyCredits(priceId) {
-      if (!stripe) {
-        alert('Payment system not available.');
-        return;
-      }
-      const res = await fetch(`${API_BASE}/portal/create-checkout-session`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ price_id: priceId })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        window.location.href = data.url;
-      } else {
-        alert('Could not start checkout.');
-      }
-    }
-
+    function toggleKey() { apiKeyRevealed = !apiKeyRevealed; updateApiKeyDisplay(); }
+    function copyKey() { navigator.clipboard.writeText(currentApiKey); alert('API key copied!'); }
     function switchTab(tab) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-      document.getElementById(`tab-${tab}`).classList.remove('hidden');
+      document.getElementById('tab-'+tab).classList.remove('hidden');
       document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
       document.querySelector(`.sidebar a[onclick="switchTab('${tab}')"]`).classList.add('active');
     }
+    function signOut() { supabaseClient.auth.signOut(); }
 
-    function signOut() {
-      supabaseClient.auth.signOut();
+    async function fetchProfile() {
+      const res = await fetch(`${API_BASE}/portal/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (res.ok) { const d = await res.json(); credits = d.credits_remaining; currentApiKey = d.api_key; updateCreditDisplay(); updateApiKeyDisplay(); }
+    }
+    async function fetchInvoices() {
+      const res = await fetch(`${API_BASE}/portal/invoices`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (res.ok) { const d = await res.json(); invoices = d.invoices || []; const list = document.getElementById('invoice-list'); list.innerHTML = invoices.length ? invoices.map(inv => `${new Date(inv.created_at).toLocaleDateString()} - $${(inv.amount_total/100).toFixed(2)} - ${inv.credits_purchased} credits`).join('<br>') : 'No invoices yet.'; }
+    }
+    async function rotateKey() {
+      if (!confirm('Deactivate current key?')) return;
+      const res = await fetch(`${API_BASE}/portal/rotate-key`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (res.ok) { const d = await res.json(); currentApiKey = d.new_api_key; apiKeyRevealed = true; updateApiKeyDisplay(); alert('Key rotated!'); }
+      else alert('Rotation failed.');
+    }
+    async function buyCredits(priceId) {
+      if (!stripe) { alert('Payment system unavailable.'); return; }
+      const res = await fetch(`${API_BASE}/portal/create-checkout-session`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ price_id: priceId }) });
+      if (res.ok) { const d = await res.json(); window.location.href = d.url; }
+      else alert('Could not start checkout.');
     }
 
-    // ---------- LOGIN ----------
     document.getElementById('btn-login').addEventListener('click', async () => {
       const email = document.getElementById('login-email').value;
-      const btn = document.getElementById('btn-login');
-      btn.disabled = true;
-      btn.textContent = 'Sending...';
+      const btn = document.getElementById('btn-login'); btn.disabled = true; btn.textContent = 'Sending...';
       const { error } = await supabaseClient.auth.signInWithOtp({ email });
-      if (error) {
-        showError(error.message);
-      } else {
-        showError('Magic link sent! Check your email.');
-      }
-      btn.disabled = false;
-      btn.textContent = 'Send Magic Link';
+      if (error) document.getElementById('login-msg').textContent = error.message;
+      else document.getElementById('login-msg').textContent = 'Magic link sent! Check your email.';
+      btn.disabled = false; btn.textContent = 'Send Magic Link';
     });
 
-    // ---------- AUTH STATE LISTENER ----------
     supabaseClient.auth.onAuthStateChange((event, authSession) => {
       if (authSession) {
         session = authSession;
         document.getElementById('login-container').classList.add('hidden');
         document.getElementById('dashboard').classList.remove('hidden');
-        fetchProfile();
-        fetchInvoices();
+        fetchProfile(); fetchInvoices();
       } else {
         document.getElementById('login-container').classList.remove('hidden');
         document.getElementById('dashboard').classList.add('hidden');
       }
     });
 
-    // Check initial session
     (async () => {
       const { data } = await supabaseClient.auth.getSession();
       if (data.session) {
         session = data.session;
         document.getElementById('login-container').classList.add('hidden');
         document.getElementById('dashboard').classList.remove('hidden');
-        fetchProfile();
-        fetchInvoices();
+        fetchProfile(); fetchInvoices();
       }
     })();
   </script>
