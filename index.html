@@ -63,7 +63,7 @@
       if (error) alert(error.message)
       else alert('Check your email for the magic link!')
     }
-    async function loadDashboard() {
+    async function loadDashboard() { try {
       const { data: { session } } = await supabaseClient.auth.getSession()
       if (!session) {
         document.getElementById('login').style.display = 'block'
@@ -120,8 +120,8 @@
       if (data.url) window.location.href = data.url
       else alert('Could not start checkout')
     }
-    supabaseClient.auth.onAuthStateChange((event, session) => { if (session) loadDashboard() })
-    window.onload = loadDashboard
+      } catch(e) { console.error('Dashboard error:', e); } } supabaseClient.auth.onAuthStateChange((event, session) => { if (session) loadDashboard() })
+    window.onload = async function() { if (window.location.hash.includes('access_token')) { const hash = window.location.hash.substring(1); const params = new URLSearchParams(hash); const token = params.get('access_token'); if (token) { try { await supabaseClient.auth.setSession({ access_token: token, refresh_token: '' }); } catch (e) { console.error('Session set error:', e); } } } loadDashboard(); }
   </script>
 </body>
 </html>
