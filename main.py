@@ -91,11 +91,14 @@ def check_idempotency(api_key: str, idem_key: str) -> Optional[dict]:
 
 def store_idempotency(api_key: str, idem_key: str, response_data: dict):
     try:
-        supabase.table("idempotency_store").update({
-            "response": response_data
-        }).eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
+        # Upsert – if the placeholder exists, update it; if not (unlikely), insert
+        supabase.table("idempotency_store").upsert({
+            "api_key": api_key,
+            "idempotency_key": idem_key,
+            "response": response_data,
+        }, on_conflict="api_key,idempotency_key").execute()
     except Exception as e:
-        logger.error(f"Idempotency update error: {e}")
+        logger.error(f"Idempotency store error: {e}")
 
 def transform_hl7_to_fhir(hl7_message: str) -> dict:
     clean = hl7_message.replace("\n", "\r").strip()
