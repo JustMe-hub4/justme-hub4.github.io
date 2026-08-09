@@ -1,11 +1,498 @@
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8"/>
-    <meta http-equiv="refresh" content="0;url=portal.html"/>
-    <title>Redirecting…</title>
-  </head>
-  <body>
-    <p>Redirecting to <a href="portal.html">portal.html</a></p>
-  </body>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FHIR Interop Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://js.stripe.com/v3/"></script>
+  <style>
+    :root {
+      --bg: #07111F;
+      --surface: #101D2D;
+      --surface-elevated: #162438;
+      --border: #1E334A;
+      --primary: #16C7D9;
+      --secondary: #6366F1;
+      --violet: #8B5CF6;
+      --success: #22C55E;
+      --warning: #F59E0B;
+      --error: #EF4444;
+      --text: #F8FAFC;
+      --text-secondary: #CBD5E1;
+      --text-muted: #94A3B8;
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); }
+    button { cursor: pointer; font-family: var(--font); }
+    input { font-family: var(--font); }
+    .app { display: flex; min-height: 100vh; }
+    .sidebar { width: 176px; background: var(--surface); padding: 24px 16px; display: flex; flex-direction: column; border-right: 1px solid var(--border); }
+    .sidebar .logo { font-size: 20px; font-weight: 700; margin-bottom: 32px; color: var(--primary); }
+    .sidebar nav a { display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 4px; border-radius: 8px; color: var(--text-muted); text-decoration: none; font-size: 14px; font-weight: 500; transition: all 0.2s; }
+    .sidebar nav a:hover, .sidebar nav a.active { background: var(--surface-elevated); color: var(--text); }
+    .sidebar nav a.active { color: var(--primary); }
+    .main { flex: 1; display: flex; flex-direction: column; }
+    .topbar { height: 76px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }
+    .topbar .user { display: flex; align-items: center; gap: 12px; }
+    .content { flex: 1; padding: 24px; max-width: 1200px; overflow-y: auto; }
+    .card { background: var(--surface); border-radius: var(--radius); padding: 24px; border: 1px solid var(--border); margin-bottom: 24px; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .card-title { font-size: 18px; font-weight: 600; }
+    .btn { padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 14px; border: none; transition: all 0.2s; }
+    .btn-primary { background: var(--primary); color: #07111F; }
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-secondary { background: var(--surface-elevated); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: #1e334a; }
+    .btn-danger { background: var(--error); color: white; }
+    .btn-danger:hover { filter: brightness(1.1); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); }
+    .btn-sm { padding: 6px 12px; font-size: 13px; }
+    .input { width: 100%; padding: 10px 14px; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 15px; outline: none; }
+    .input:focus { border-color: var(--primary); }
+    .key-display { font-family: var(--mono); background: var(--surface-elevated); padding: 12px; border-radius: 8px; color: var(--text-secondary); word-break: break-all; font-size: 14px; }
+    .key-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+    canvas { width: 100% !important; max-height: 200px; }
+    .grid { display: grid; gap: 24px; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .success { background: rgba(34,197,94,0.15); color: var(--success); }
+    .warning { background: rgba(245,158,11,0.15); color: var(--warning); }
+    .error { background: rgba(239,68,68,0.15); color: var(--error); }
+    .muted { color: var(--text-muted); font-size: 13px; }
+    .mono { font-family: var(--mono); }
+    @media (max-width: 900px) {
+      .sidebar { width: 60px; padding: 16px 8px; }
+      .sidebar nav a span { display: none; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .topbar { padding: 0 16px; }
+      .content { padding: 16px; }
+    }
+    .section { display: none; }
+    .section.active { display: block; }
+    .login-container { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .login-card { background: var(--surface); border-radius: 12px; padding: 40px; width: 400px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    // ---------- CONFIG ----------
+    const SUPABASE_URL = 'https://lhgfolrupmsklrccirpj.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_4y3_i7S_YNCgOoEkbbVWRg_qXLBNlyf';
+    const API_BASE = 'https://quack-xzno.onrender.com';
+    const STRIPE_KEY = 'pk_test_51Rop3yIUjoQtwpInfxgeUgbRyoJ3NPDBseT2iRIhrQC3HYhrWPwtR9e8DzLiaj9LFIvb9fgR5xNiuDbrG9gMptKP00e9HvvXNY';
+    const PRICE_IDS = {
+      starter: 'price_1U1xzUIUjoQtwpInIy0o6u1O',
+      growth: 'price_1U1xzUIUjoQtwpInNFq6TRCU',
+      volume: 'price_1U1xzUIUjoQtwpInL8G3EBZX'
+    };
+
+    // ---------- INIT CLIENTS (only once) ----------
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let stripe = null;
+    if (typeof Stripe !== 'undefined') {
+      stripe = Stripe(STRIPE_KEY);
+    }
+
+    // ---------- STATE ----------
+    let session = null;
+    let currentApiKey = '';
+    let apiKeyRevealed = false;
+    let credits = 0;
+    let dailyUsage = {};
+    let invoices = [];
+
+    // ---------- HELPERS ----------
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      toast.textContent = msg;
+      toast.style.padding = '12px 20px';
+      toast.style.borderRadius = '8px';
+      toast.style.fontWeight = '500';
+      toast.style.marginBottom = '8px';
+      toast.style.background = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--error)' : type === 'warning' ? 'var(--warning)' : 'var(--primary)';
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    async function fetchProfile() {
+      const res = await fetch(`${API_BASE}/portal/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        credits = data.credits_remaining;
+        currentApiKey = data.api_key;
+        updateCreditDisplay();
+        updateApiKeyDisplay();
+      }
+    }
+
+    async function fetchUsage() {
+      const res = await fetch(`${API_BASE}/portal/usage`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        dailyUsage = data.daily_usage || {};
+        renderUsageChart();
+      }
+    }
+
+    async function fetchInvoices() {
+      const res = await fetch(`${API_BASE}/portal/invoices`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        invoices = data.invoices || [];
+        renderInvoices();
+      }
+    }
+
+    function updateCreditDisplay() {
+      const el = document.getElementById('credit-balance');
+      if (el) el.textContent = credits.toLocaleString();
+      const low = document.getElementById('credit-low');
+      if (low) {
+        if (credits < 10) {
+          low.innerHTML = '<span style="color:var(--error)">🔴 Credits almost empty. Translation may stop soon.</span>';
+        } else if (credits < 100) {
+          low.innerHTML = `<span style="color:var(--warning)">⚠ Only ${credits} credits remaining. Consider buying more.</span>`;
+        } else {
+          low.innerHTML = '';
+        }
+      }
+    }
+
+    function updateApiKeyDisplay() {
+      const display = document.getElementById('api-key-display');
+      if (!display) return;
+      if (apiKeyRevealed) {
+        display.textContent = currentApiKey;
+        const btn = document.getElementById('btn-show-key');
+        if (btn) btn.textContent = 'Hide';
+      } else {
+        display.textContent = currentApiKey.substring(0, 12) + '••••••••••••••••••••••••';
+        const btn = document.getElementById('btn-show-key');
+        if (btn) btn.textContent = 'Show';
+      }
+    }
+
+    function toggleKey() {
+      apiKeyRevealed = !apiKeyRevealed;
+      updateApiKeyDisplay();
+    }
+
+    function copyKey() {
+      navigator.clipboard.writeText(currentApiKey);
+      showToast('API key copied to clipboard.', 'success');
+    }
+
+    async function rotateKey() {
+      if (!confirm('Deactivate current key? This cannot be undone.')) return;
+      const res = await fetch(`${API_BASE}/portal/rotate-key`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        currentApiKey = data.new_api_key;
+        apiKeyRevealed = true;
+        updateApiKeyDisplay();
+        showToast('API key rotated successfully.', 'success');
+      } else {
+        showToast('Key rotation failed.', 'error');
+      }
+    }
+
+    async function buyCredits(priceId) {
+      if (!stripe) {
+        showToast('Payment system not available. Please try again later.', 'error');
+        return;
+      }
+      const res = await fetch(`${API_BASE}/portal/create-checkout-session`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ price_id: priceId })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        window.location.href = data.url;
+      } else {
+        showToast('Could not start checkout.', 'error');
+      }
+    }
+
+    function renderUsageChart() {
+      const ctx = document.getElementById('usage-chart');
+      if (!ctx) return;
+      if (window.chart) window.chart.destroy();
+      const labels = Object.keys(dailyUsage).sort();
+      const values = labels.map(d => dailyUsage[d]);
+      window.chart = new Chart(ctx.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{ label: 'Translations', data: values, backgroundColor: '#16C7D9', borderRadius: 4 }]
+        },
+        options: {
+          responsive: true,
+          scales: { y: { beginAtZero: true, ticks: { color: '#94A3B8' } }, x: { ticks: { color: '#94A3B8' } } },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    function renderInvoices() {
+      const list = document.getElementById('invoice-list');
+      if (!list) return;
+      if (invoices.length === 0) {
+        list.innerHTML = '<div class="muted">No invoices yet.</div>';
+        return;
+      }
+      list.innerHTML = invoices.map(inv => `
+        <div class="card" style="display:flex; justify-content:space-between; padding:12px; margin-bottom:8px;">
+          <div><strong>${new Date(inv.created_at).toLocaleDateString()}</strong><br><span class="muted">${inv.stripe_checkout_session_id}</span></div>
+          <div style="text-align:right"><span class="mono">+${inv.credits_purchased} credits</span><br>$${(inv.amount_total/100).toFixed(2)}</div>
+        </div>
+      `).join('');
+    }
+
+    function navigate(section) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      const target = document.getElementById(`section-${section}`);
+      if (target) target.classList.add('active');
+      document.querySelectorAll('.sidebar nav a').forEach(a => a.classList.remove('active'));
+      const link = document.querySelector(`.sidebar nav a[data-section="${section}"]`);
+      if (link) link.classList.add('active');
+      // Load data for the section
+      if (section === 'dashboard' || section === 'settings') fetchProfile();
+      if (section === 'dashboard' || section === 'usage') fetchUsage();
+      if (section === 'dashboard' || section === 'billing') fetchInvoices();
+    }
+
+    function buildApp() {
+      document.getElementById('app').innerHTML = `
+        <div class="app">
+          <div class="sidebar">
+            <div class="logo">◈ FHIR</div>
+            <nav>
+              <a data-section="dashboard" class="active">📊 Dashboard</a>
+              <a data-section="usage">📈 Usage</a>
+              <a data-section="billing">💳 Billing</a>
+              <a data-section="docs">📘 Docs</a>
+              <a data-section="explorer">🧪 Explorer</a>
+              <a data-section="settings">⚙ Settings</a>
+            </nav>
+          </div>
+          <div class="main">
+            <div class="topbar">
+              <span>● Production</span>
+              <div class="user">
+                <span id="user-email" class="muted"></span>
+                <button onclick="signOut()" class="btn btn-secondary btn-sm">Sign Out</button>
+              </div>
+            </div>
+            <div class="content" id="content-area">
+              <!-- Dashboard Section -->
+              <div id="section-dashboard" class="section active">
+                <h2>Dashboard</h2>
+                <div class="grid grid-2">
+                  <div class="card">
+                    <div class="card-header"><span class="card-title">Available Credits</span></div>
+                    <h1 id="credit-balance">...</h1>
+                    <button onclick="navigate('billing')" class="btn btn-primary">+ Buy Credits</button>
+                  </div>
+                  <div class="card">
+                    <div class="card-header"><span class="card-title">Translation Health</span></div>
+                    <div>99.7% success</div>
+                  </div>
+                </div>
+                <div id="credit-low"></div>
+                <div class="card">
+                  <div class="card-header"><span class="card-title">API Key</span></div>
+                  <div id="api-key-display" class="key-display">••••••••••••••••••••••••</div>
+                  <div class="key-row">
+                    <button id="btn-show-key" onclick="toggleKey()" class="btn btn-secondary">Show</button>
+                    <button onclick="copyKey()" class="btn btn-secondary">Copy</button>
+                    <button onclick="rotateKey()" class="btn btn-danger">Rotate</button>
+                  </div>
+                </div>
+                <div class="card">
+                  <div class="card-header"><span class="card-title">Translations (Last 7 Days)</span></div>
+                  <canvas id="usage-chart"></canvas>
+                </div>
+                <div class="card">
+                  <div class="card-header"><span class="card-title">Get Started</span></div>
+                  <p>① Copy your API key → ② Send HL7 → ③ Receive FHIR</p>
+                  <button onclick="navigate('docs')" class="btn btn-primary">Quick Start</button>
+                </div>
+              </div>
+              <!-- Usage Section -->
+              <div id="section-usage" class="section">
+                <h2>Usage</h2>
+                <div class="card">
+                  <div class="card-header"><span class="card-title">Translation Volume</span></div>
+                  <canvas id="usage-chart-2"></canvas>
+                </div>
+              </div>
+              <!-- Billing Section -->
+              <div id="section-billing" class="section">
+                <h2>Buy Credits</h2>
+                <div class="grid grid-2">
+                  <div class="card">
+                    <h3>Starter</h3><p>100 credits</p><p>$30</p>
+                    <button onclick="buyCredits(PRICE_IDS.starter)" class="btn btn-primary">Buy</button>
+                  </div>
+                  <div class="card">
+                    <h3>Growth</h3><p>10,000 credits</p><p>$2,000</p>
+                    <button onclick="buyCredits(PRICE_IDS.growth)" class="btn btn-primary">Buy</button>
+                  </div>
+                  <div class="card">
+                    <h3>Volume</h3><p>75,000 credits</p><p>$9,000</p>
+                    <button onclick="buyCredits(PRICE_IDS.volume)" class="btn btn-primary">Buy</button>
+                  </div>
+                </div>
+                <h3 style="margin-top:24px;">Invoice History</h3>
+                <div id="invoice-list"></div>
+              </div>
+              <!-- Docs Section -->
+              <div id="section-docs" class="section">
+                <h2>Quick Start</h2>
+                <div class="card">
+                  <p>1. Copy your API key</p>
+                  <div id="doc-api-key" class="key-display">••••••••••••••••••••••••</div>
+                  <button onclick="copyKey()" class="btn btn-secondary btn-sm" style="margin-top:8px;">Copy</button>
+                  <br/><br/>
+                  <p>2. Send a request</p>
+                  <pre class="mono" style="background:var(--surface-elevated); padding:12px; border-radius:8px;">
+curl -X POST https://quack-xzno.onrender.com/v1/translate \\
+  -H "X-API-Key: <span id="doc-key-inline">YOUR_KEY</span>" \\
+  -H "Content-Type: text/plain" \\
+  --data-binary @message.hl7
+                  </pre>
+                  <p class="muted">Include an optional X-Idempotency-Key for safe retries.</p>
+                </div>
+              </div>
+              <!-- Explorer Section -->
+              <div id="section-explorer" class="section">
+                <h2>API Explorer</h2>
+                <div class="card">
+                  <textarea id="explorer-hl7" class="input" style="height:120px; font-family:var(--mono);">MSH|^~\&|LAB|HOSPITAL|APP|20260809120000||ADT^A01|MSG001|P|2.5
+PID|1||123456||DOE^JOHN</textarea>
+                  <input id="explorer-idem" class="input" style="margin-top:8px;" placeholder="Idempotency Key (optional)" value="">
+                  <button onclick="exploreTranslate()" class="btn btn-primary" style="margin-top:12px;">▶ Translate</button>
+                  <div id="explorer-response" style="margin-top:16px;"></div>
+                </div>
+              </div>
+              <!-- Settings Section -->
+              <div id="section-settings" class="section">
+                <h2>Settings</h2>
+                <div class="card">
+                  <p>Email: <span id="settings-email"></span></p>
+                  <p>Member since: <span id="settings-joined"></span></p>
+                </div>
+                <div class="card">
+                  <h3>API Key</h3>
+                  <div id="settings-api-key" class="key-display">••••••••••••••••••••••••</div>
+                  <div class="key-row">
+                    <button onclick="toggleKey()" class="btn btn-secondary">Show</button>
+                    <button onclick="copyKey()" class="btn btn-secondary">Copy</button>
+                    <button onclick="rotateKey()" class="btn btn-danger">Rotate</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="toast-container" style="position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:2000;"></div>
+        </div>
+      `;
+      // Sidebar navigation
+      document.querySelectorAll('.sidebar nav a').forEach(a => {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          navigate(a.dataset.section);
+        });
+      });
+    }
+
+    // ---------- AUTH ----------
+    async function handleAuthChange(event, authSession) {
+      if (authSession) {
+        session = authSession;
+        document.getElementById('app').innerHTML = '';
+        buildApp();
+        document.getElementById('user-email').textContent = authSession.user.email;
+        document.getElementById('settings-email').textContent = authSession.user.email;
+        document.getElementById('settings-joined').textContent = new Date(authSession.user.created_at).toLocaleDateString();
+        navigate('dashboard');
+      } else {
+        // Show login page
+        document.getElementById('app').innerHTML = `
+          <div class="login-container">
+            <div class="login-card">
+              <h1 style="margin-bottom:8px;">◈ FHIR Interop Engine</h1>
+              <p class="muted" style="margin-bottom:24px;">HL7v2 → FHIR R4 Translation</p>
+              <input id="login-email" class="input" placeholder="Enter your email" type="email">
+              <button id="btn-login" class="btn btn-primary" style="width:100%; margin-top:16px;">Send Magic Link</button>
+              <p id="login-msg" class="muted" style="margin-top:12px;"></p>
+            </div>
+          </div>
+        `;
+        document.getElementById('btn-login').addEventListener('click', async () => {
+          const email = document.getElementById('login-email').value;
+          const btn = document.getElementById('btn-login');
+          btn.disabled = true;
+          btn.textContent = 'Sending...';
+          const { error } = await supabaseClient.auth.signInWithOtp({ email });
+          if (error) {
+            document.getElementById('login-msg').textContent = error.message;
+          } else {
+            document.getElementById('login-msg').textContent = 'Magic link sent! Check your email.';
+          }
+          btn.disabled = false;
+          btn.textContent = 'Send Magic Link';
+        });
+      }
+    }
+
+    function signOut() {
+      supabaseClient.auth.signOut();
+    }
+
+    // ---------- API EXPLORER ----------
+    async function exploreTranslate() {
+      const hl7 = document.getElementById('explorer-hl7').value;
+      const idem = document.getElementById('explorer-idem').value;
+      const headers = { 'Content-Type': 'text/plain', 'X-API-Key': currentApiKey };
+      if (idem) headers['X-Idempotency-Key'] = idem;
+      const start = Date.now();
+      const res = await fetch(`${API_BASE}/v1/translate`, { method: 'POST', headers, body: hl7 });
+      const latency = Date.now() - start;
+      const body = await res.text();
+      let pretty = '';
+      try { pretty = JSON.stringify(JSON.parse(body), null, 2); } catch { pretty = body; }
+      document.getElementById('explorer-response').innerHTML = `
+        <div class="card">
+          <span class="badge ${res.ok ? 'success' : 'error'}">${res.status} ${res.statusText}</span>
+          <span class="muted" style="margin-left:8px;">${latency}ms</span>
+          <pre class="mono" style="background:var(--surface-elevated); padding:12px; margin-top:8px; border-radius:8px; overflow-x:auto;">${pretty.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>
+        </div>
+      `;
+    }
+
+    // ---------- INIT ----------
+    supabaseClient.auth.onAuthStateChange(handleAuthChange);
+    // Check initial session
+    (async () => {
+      const { data } = await supabaseClient.auth.getSession();
+      handleAuthChange(null, data.session);
+    })();
+  </script>
+</body>
 </html>
