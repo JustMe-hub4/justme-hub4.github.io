@@ -25,6 +25,7 @@
     <button onclick="sendMagicLink()" class="primary">Sign In / Sign Up</button>
     <p style="color: gray;">No password – we'll email you a magic link.</p>
   </div>
+
   <div id="dashboard">
     <h2>Dashboard</h2>
     <div class="card">
@@ -49,67 +50,98 @@
     </div>
     <button onclick="supabaseClient.auth.signOut()">Sign Out</button>
   </div>
+
   <script>
     const SUPABASE_URL = 'https://lhgfolrupmsklrccirpj.supabase.co'
     const SUPABASE_ANON_KEY = 'sb_publishable_4y3_i7S_YNCgOoEkbbVWRg_qXLBNlyf'
     const API_BASE = 'https://quack-xzno.onrender.com'
     const STRIPE_PUBLISHABLE_KEY = 'pk_test_51Rop3yIUjoQtwpInfxgeUgbRyoJ3NPDBseT2iRIhrQC3HYhrWPwtR9e8DzLiaj9LFIvb9fgR5xNiuDbrG9gMptKP00e9HvvXNY'
+
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-    let stripe = null; if (typeof Stripe !== 'undefined') { stripe = Stripe(STRIPE_PUBLISHABLE_KEY); }
+    let stripe = null
+    if (typeof Stripe !== 'undefined') {
+      stripe = Stripe(STRIPE_PUBLISHABLE_KEY)
+    }
+
     let currentApiKey = ''
+
     async function sendMagicLink() {
       const email = document.getElementById('email').value
       const { error } = await supabaseClient.auth.signInWithOtp({ email })
       if (error) alert(error.message)
       else alert('Check your email for the magic link!')
     }
-    async function loadDashboard() { try {
-      const { data: { session } } = await supabaseClient.auth.getSession()
-      if (!session) {
-        document.getElementById('login').style.display = 'block'
-        document.getElementById('dashboard').style.display = 'none'
-        return
+
+    async function loadDashboard() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession()
+        if (!session) {
+          document.getElementById('login').style.display = 'block'
+          document.getElementById('dashboard').style.display = 'none'
+          return
+        }
+        document.getElementById('login').style.display = 'none'
+        document.getElementById('dashboard').style.display = 'block'
+        const token = session.access_token
+
+        const meRes = await fetch(`${API_BASE}/portal/me`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const meData = await meRes.json()
+        currentApiKey = meData.api_key
+        document.getElementById('apiKey').innerText = currentApiKey
+        document.getElementById('credits').innerText = meData.credits_remaining
+
+        const usageRes = await fetch(`${API_BASE}/portal/usage`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const usageData = await usageRes.json()
+        const labels = Object.keys(usageData.daily_usage)
+        const values = Object.values(usageData.daily_usage)
+        new Chart(document.getElementById('usageChart'), {
+          type: 'bar',
+          data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#007bff' }] },
+          options: { scales: { y: { beginAtZero: true } } }
+        })
+
+        const invRes = await fetch(`${API_BASE}/portal/invoices`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const invData = await invRes.json()
+        const list = document.getElementById('invoiceList')
+        list.innerHTML = ''
+        invData.invoices.forEach(inv => {
+          const li = document.createElement('li')
+          li.textContent = `$${(inv.amount_total/100).toFixed(2)} – ${inv.credits_purchased} credits – ${new Date(inv.created_at).toLocaleDateString()}`
+          list.appendChild(li)
+        })
+      } catch (e) {
+        console.error('Dashboard error:', e)
       }
-      document.getElementById('login').style.display = 'none'
-      document.getElementById('dashboard').style.display = 'block'
-      const token = session.access_token
-      const meRes = await fetch(`${API_BASE}/portal/me`, { headers: { 'Authorization': `Bearer ${token}` } })
-      const meData = await meRes.json()
-      currentApiKey = meData.api_key
-      document.getElementById('apiKey').innerText = currentApiKey
-      document.getElementById('credits').innerText = meData.credits_remaining
-      const usageRes = await fetch(`${API_BASE}/portal/usage`, { headers: { 'Authorization': `Bearer ${token}` } })
-      const usageData = await usageRes.json()
-      const labels = Object.keys(usageData.daily_usage)
-      const values = Object.values(usageData.daily_usage)
-      new Chart(document.getElementById('usageChart'), {
-        type: 'bar',
-        data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#007bff' }] },
-        options: { scales: { y: { beginAtZero: true } } }
-      })
-      const invRes = await fetch(`${API_BASE}/portal/invoices`, { headers: { 'Authorization': `Bearer ${token}` } })
-      const invData = await invRes.json()
-      const list = document.getElementById('invoiceList')
-      list.innerHTML = ''
-      invData.invoices.forEach(inv => {
-        const li = document.createElement('li')
-        li.textContent = `$${(inv.amount_total/100).toFixed(2)} – ${inv.credits_purchased} credits – ${new Date(inv.created_at).toLocaleDateString()}`
-        list.appendChild(li)
-      })
     }
+
     async function rotateKey() {
       const token = (await supabaseClient.auth.getSession()).data.session?.access_token
-      const res = await fetch(`${API_BASE}/portal/rotate-key`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } })
+      const res = await fetch(`${API_BASE}/portal/rotate-key`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
       const data = await res.json()
       document.getElementById('apiKey').innerText = data.new_api_key
       currentApiKey = data.new_api_key
-      alert('API key rotated!')
+      alert('API key rotated! Old key is now deactivated.')
     }
+
     function copyKey() {
       navigator.clipboard.writeText(currentApiKey)
       alert('API key copied!')
     }
+
     async function buyCredits(priceId) {
+      if (!stripe) {
+        alert('Payment system temporarily unavailable. Please try again later.')
+        return
+      }
       const token = (await supabaseClient.auth.getSession()).data.session?.access_token
       const res = await fetch(`${API_BASE}/portal/create-checkout-session`, {
         method: 'POST',
@@ -120,8 +152,27 @@
       if (data.url) window.location.href = data.url
       else alert('Could not start checkout')
     }
-      } catch(e) { console.error('Dashboard error:', e); } } supabaseClient.auth.onAuthStateChange((event, session) => { if (session) loadDashboard() })
-    window.onload = async function() { if (window.location.hash.includes('access_token')) { const hash = window.location.hash.substring(1); const params = new URLSearchParams(hash); const token = params.get('access_token'); if (token) { try { await supabaseClient.auth.setSession({ access_token: token, refresh_token: '' }); } catch (e) { console.error('Session set error:', e); } } } loadDashboard(); }
+
+    // Handle access_token in URL hash (for manual login)
+    window.onload = async function() {
+      if (window.location.hash.includes('access_token')) {
+        const hash = window.location.hash.substring(1)
+        const params = new URLSearchParams(hash)
+        const token = params.get('access_token')
+        if (token) {
+          try {
+            await supabaseClient.auth.setSession({ access_token: token, refresh_token: '' })
+          } catch (e) {
+            console.error('Session set error:', e)
+          }
+        }
+      }
+      loadDashboard()
+    }
+
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      if (session) loadDashboard()
+    })
   </script>
 </body>
 </html>
