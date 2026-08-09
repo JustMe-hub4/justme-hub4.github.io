@@ -120,7 +120,7 @@ def transform_hl7_to_fhir(hl7_message: str) -> dict:
         id=str(uuid.uuid4()),
         identifier=[Identifier(system="urn:oid:2.16.840.1.113883.19.5", value=str(mrn))],
         name=[HumanName(family=str(family), given=[str(given)])],
-        birthDate=datetime.strptime(str(dob), "%Y%m%d").date() if len(str(dob)) == 8 else None
+        birthDate=datetime.strptime(str(dob), "%Y%m%d").date().isoformat() if len(str(dob)) == 8 else None
     )
     encounter = Encounter(
         id=str(uuid.uuid4()),
