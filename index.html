@@ -153,22 +153,30 @@
       else alert('Could not start checkout')
     }
 
-    // Handle access_token in URL hash (for manual login)
-    window.onload = async function() {
+    // ---------- FOOLPROOF INIT ----------
+    async function init() {
+      // Check if there's a token in the URL hash
       if (window.location.hash.includes('access_token')) {
         const hash = window.location.hash.substring(1)
         const params = new URLSearchParams(hash)
         const token = params.get('access_token')
         if (token) {
-          try {
-            await supabaseClient.auth.setSession({ access_token: token, refresh_token: '' })
-          } catch (e) {
-            console.error('Session set error:', e)
+          // Set the session explicitly
+          const { error } = await supabaseClient.auth.setSession({ access_token: token, refresh_token: '' })
+          if (error) {
+            console.error('Auto-login failed:', error.message)
+            // Fall through to loadDashboard, which will show login
           }
+          // Clean the URL to avoid reusing the token
+          window.history.replaceState({}, document.title, window.location.pathname)
         }
       }
+      // Now check session and render
       loadDashboard()
     }
+
+    // Start on page load
+    window.onload = init
 
     supabaseClient.auth.onAuthStateChange((event, session) => {
       if (session) loadDashboard()
