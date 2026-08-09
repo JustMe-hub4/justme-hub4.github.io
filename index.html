@@ -4,299 +4,520 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FHIR Interop Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://js.stripe.com/v3/"></script>
   <style>
+    :root {
+      --bg: #07111F;
+      --surface: #101D2D;
+      --surface-elevated: #162438;
+      --border: #1E334A;
+      --primary: #16C7D9;
+      --secondary: #6366F1;
+      --violet: #8B5CF6;
+      --success: #22C55E;
+      --warning: #F59E0B;
+      --error: #EF4444;
+      --text: #F8FAFC;
+      --text-secondary: #CBD5E1;
+      --text-muted: #94A3B8;
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+      --radius: 10px;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: #f5f7fb; color: #1a1a2e; }
-    .container { max-width: 720px; margin: 0 auto; padding: 2rem 1rem; }
-    .header { text-align: center; margin-bottom: 2rem; }
-    .header h1 { font-size: 2rem; font-weight: 700; color: #0f172a; }
-    .card { background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-    .flex { display: flex; align-items: center; gap: 1rem; }
-    .avatar { width: 48px; height: 48px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-weight: 600; color: #475569; }
-    .user-info { flex: 1; }
-    .user-email { font-size: 0.9rem; color: #64748b; }
-    .key-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
-    .key-display { font-family: monospace; background: #f1f5f9; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; color: #334155; overflow-x: auto; white-space: nowrap; max-width: 320px; }
-    .btn { padding: 0.6rem 1.2rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-    .btn-primary { background: #2563eb; color: white; }
-    .btn-primary:hover { background: #1d4ed8; }
-    .btn-secondary { background: #e2e8f0; color: #334155; }
-    .btn-danger { background: #ef4444; color: white; }
-    .btn-danger:hover { background: #dc2626; }
-    .btn-outline { background: transparent; border: 1px solid #cbd5e1; color: #475569; }
-    .loading { display: inline-block; width: 16px; height: 16px; border: 2px solid #cbd5e1; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 0.5rem; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .hidden { display: none; }
-    .error { color: #ef4444; font-size: 0.85rem; margin-top: 0.5rem; }
-    .success { color: #16a34a; }
-    .usage-chart { margin-top: 1rem; }
-    canvas { max-width: 100%; }
-    ul { list-style: none; padding: 0; }
-    li { padding: 0.5rem 0; border-bottom: 1px solid #f1f5f9; }
-    li:last-child { border-bottom: none; }
-    input[type="email"] { width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; margin: 0.5rem 0; }
-    .mt-2 { margin-top: 0.75rem; }
-    .mb-2 { margin-bottom: 0.75rem; }
-    .text-small { font-size: 0.85rem; color: #64748b; }
-    .tier-btn { margin-right: 0.5rem; margin-bottom: 0.5rem; }
-    .spacer { flex: 1; }
-    @media (max-width: 500px) { .container { padding: 1rem; } .key-display { max-width: 200px; } }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); }
+    button { cursor: pointer; font-family: var(--font); }
+    input { font-family: var(--font); }
+
+    /* Layout */
+    .app { display: flex; min-height: 100vh; }
+    .sidebar { width: 176px; background: var(--surface); padding: 24px 16px; display: flex; flex-direction: column; border-right: 1px solid var(--border); }
+    .sidebar .logo { font-size: 20px; font-weight: 700; margin-bottom: 32px; color: var(--primary); }
+    .sidebar nav a { display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 4px; border-radius: 8px; color: var(--text-muted); text-decoration: none; font-size: 14px; font-weight: 500; transition: all 0.2s; }
+    .sidebar nav a:hover, .sidebar nav a.active { background: var(--surface-elevated); color: var(--text); }
+    .sidebar nav a.active { color: var(--primary); }
+    .main { flex: 1; display: flex; flex-direction: column; }
+    .topbar { height: 76px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }
+    .topbar .user { display: flex; align-items: center; gap: 12px; }
+    .content { flex: 1; padding: 24px; max-width: 1200px; overflow-y: auto; }
+
+    /* Cards */
+    .card { background: var(--surface); border-radius: var(--radius); padding: 24px; border: 1px solid var(--border); margin-bottom: 24px; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .card-title { font-size: 18px; font-weight: 600; }
+
+    /* Buttons */
+    .btn { padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 14px; border: none; transition: all 0.2s; }
+    .btn-primary { background: var(--primary); color: #07111F; }
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-secondary { background: var(--surface-elevated); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: #1e334a; }
+    .btn-danger { background: var(--error); color: white; }
+    .btn-danger:hover { filter: brightness(1.1); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); }
+    .btn-sm { padding: 6px 12px; font-size: 13px; }
+
+    /* Input */
+    .input { width: 100%; padding: 10px 14px; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 15px; outline: none; }
+    .input:focus { border-color: var(--primary); }
+
+    /* API Key */
+    .key-display { font-family: var(--mono); background: var(--surface-elevated); padding: 12px; border-radius: 8px; color: var(--text-secondary); word-break: break-all; font-size: 14px; }
+    .key-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+
+    /* Chart */
+    canvas { width: 100% !important; max-height: 200px; }
+
+    /* Grid */
+    .grid { display: grid; gap: 24px; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+
+    /* Misc */
+    .badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .success { background: rgba(34,197,94,0.15); color: var(--success); }
+    .warning { background: rgba(245,158,11,0.15); color: var(--warning); }
+    .error { background: rgba(239,68,68,0.15); color: var(--error); }
+    .muted { color: var(--text-muted); font-size: 13px; }
+    .mono { font-family: var(--mono); }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .sidebar { width: 60px; padding: 16px 8px; }
+      .sidebar nav a span { display: none; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .topbar { padding: 0 16px; }
+      .content { padding: 16px; }
+    }
+
+    .section { display: none; }
+    .section.active { display: block; }
+
+    .login-container { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .login-card { background: var(--surface); border-radius: 12px; padding: 40px; width: 400px; text-align: center; }
   </style>
 </head>
 <body>
-  <div id="login" class="container">
-    <div class="header">
-      <h1>FHIR Interop Engine</h1>
-      <p class="text-small">HL7v2 → FHIR R4 Translation API</p>
-    </div>
-    <div class="card">
-      <input type="email" id="email" placeholder="Enter your email address" autocomplete="email">
-      <button onclick="sendMagicLink()" class="btn btn-primary" style="width:100%">Sign In / Sign Up</button>
-      <p class="text-small mt-2">No password – we'll email you a magic link.</p>
-      <div id="loginError" class="error hidden"></div>
-    </div>
-  </div>
-
-  <div id="dashboard" class="container hidden">
-    <div class="header flex">
-      <div class="avatar" id="avatar">?</div>
-      <div class="user-info">
-        <strong id="userName">Partner</strong>
-        <div class="user-email" id="userEmail"></div>
-      </div>
-      <button onclick="signOut()" class="btn btn-outline">Sign Out</button>
-    </div>
-
-    <div class="card">
-      <div class="flex">
-        <strong>API Key</strong>
-        <span class="spacer"></span>
-        <button id="revealBtn" class="btn btn-outline" onclick="toggleKey()">Show</button>
-      </div>
-      <div class="key-row">
-        <span id="apiKeyDisplay" class="key-display">••••••••••••••••••••••••••••••••</span>
-        <button class="btn btn-outline" onclick="copyKey()" title="Copy to clipboard">📋</button>
-      </div>
-      <button onclick="rotateKey()" class="btn btn-danger mt-2">Rotate Key</button>
-    </div>
-
-    <div class="card">
-      <strong>Credits Balance</strong>
-      <div style="font-size: 2rem; font-weight: 700;" id="credits">0</div>
-      <div class="mt-2">
-        <strong>Buy Credits:</strong>
-        <div class="mt-2">
-          <button onclick="buyCredits('price_1U1xzUIUjoQtwpInIy0o6u1O')" class="btn btn-primary tier-btn">Pay‑as‑you‑go $30</button>
-          <button onclick="buyCredits('price_1U1xzUIUjoQtwpInNFq6TRCU')" class="btn btn-primary tier-btn">Volume Pack $2,000</button>
-          <button onclick="buyCredits('price_1U1xzUIUjoQtwpInL8G3EBZX')" class="btn btn-primary tier-btn">Enterprise $9,000</button>
-        </div>
-        <div id="buyError" class="error hidden"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <strong>Usage (last 7 days)</strong>
-      <div class="usage-chart"><canvas id="usageChart"></canvas></div>
-      <div id="usageLoading" class="loading hidden"></div>
-    </div>
-
-    <div class="card">
-      <strong>Invoice History</strong>
-      <ul id="invoiceList"><li class="text-small">No invoices yet</li></ul>
-    </div>
-  </div>
+  <div id="app"></div>
 
   <script>
-    const SUPABASE_URL = 'https://lhgfolrupmsklrccirpj.supabase.co'
-    const SUPABASE_ANON_KEY = 'sb_publishable_4y3_i7S_YNCgOoEkbbVWRg_qXLBNlyf'
-    const API_BASE = 'https://quack-xzno.onrender.com'
-    const STRIPE_PUBLISHABLE_KEY = 'pk_test_51Rop3yIUjoQtwpInfxgeUgbRyoJ3NPDBseT2iRIhrQC3HYhrWPwtR9e8DzLiaj9LFIvb9fgR5xNiuDbrG9gMptKP00e9HvvXNY'
+    const SUPABASE_URL = 'https://lhgfolrupmsklrccirpj.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_4y3_i7S_YNCgOoEkbbVWRg_qXLBNlyf';
+    const API_BASE = 'https://quack-xzno.onrender.com';
+    const STRIPE_KEY = 'pk_test_51Rop3yIUjoQtwpInfxgeUgbRyoJ3NPDBseT2iRIhrQC3HYhrWPwtR9e8DzLiaj9LFIvb9fgR5xNiuDbrG9gMptKP00e9HvvXNY';
+    const PRICE_IDS = {
+      starter: 'price_1U1xzUIUjoQtwpInIy0o6u1O',
+      growth: 'price_1U1xzUIUjoQtwpInNFq6TRCU',
+      volume: 'price_1U1xzUIUjoQtwpInL8G3EBZX'
+    };
 
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-    let stripe = null
-    if (typeof Stripe !== 'undefined') {
-      stripe = Stripe(STRIPE_PUBLISHABLE_KEY)
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const stripe = Stripe(STRIPE_KEY);
+
+    let session = null;
+    let currentApiKey = '';
+    let apiKeyRevealed = false;
+    let credits = 0;
+    let dailyUsage = {};
+    let invoices = [];
+    let activeSection = 'dashboard';
+
+    function $(sel) { return document.querySelector(sel); }
+    function $$(sel) { return document.querySelectorAll(sel); }
+    function escapeHtml(text) { return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function formatNumber(n) { return n.toLocaleString(); }
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.style.background = type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--error)' : type === 'warning' ? 'var(--warning)' : 'var(--primary)';
+      toast.textContent = message;
+      toast.style.padding = '12px 20px';
+      toast.style.borderRadius = '8px';
+      toast.style.fontWeight = '500';
+      toast.style.marginBottom = '8px';
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
     }
 
-    let currentApiKey = ''
-    let apiKeyRevealed = false
+    function navigate(section) {
+      activeSection = section;
+      $$('.section').forEach(s => s.classList.remove('active'));
+      const target = document.getElementById(`section-${section}`);
+      if (target) target.classList.add('active');
+      $$('.sidebar nav a').forEach(a => a.classList.remove('active'));
+      const link = document.querySelector(`.sidebar nav a[data-section="${section}"]`);
+      if (link) link.classList.add('active');
+      loadSectionData(section);
+    }
 
-    // ----- Auth -----
-    async function sendMagicLink() {
-      const email = document.getElementById('email').value
-      const { error } = await supabaseClient.auth.signInWithOtp({ email })
-      if (error) {
-        document.getElementById('loginError').textContent = error.message
-        document.getElementById('loginError').classList.remove('hidden')
-      } else {
-        alert('Check your email for the magic link!')
+    async function loadSectionData(section) {
+      if (!session) return;
+      if (section === 'dashboard' || section === 'settings') await fetchProfile();
+      if (section === 'dashboard' || section === 'usage') await fetchUsage();
+      if (section === 'dashboard' || section === 'billing') await fetchInvoices();
+    }
+
+    async function fetchProfile() {
+      const res = await fetch(`${API_BASE}/portal/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        credits = data.credits_remaining;
+        currentApiKey = data.api_key;
+        updateCreditDisplay();
+        updateApiKeyDisplay();
+      }
+    }
+    async function fetchUsage() {
+      const res = await fetch(`${API_BASE}/portal/usage`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        dailyUsage = data.daily_usage || {};
+        renderUsageChart();
+      }
+    }
+    async function fetchInvoices() {
+      const res = await fetch(`${API_BASE}/portal/invoices`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        invoices = data.invoices || [];
+        renderInvoices();
       }
     }
 
-    async function signOut() {
-      await supabaseClient.auth.signOut()
-      location.reload()
+    async function rotateKey() {
+      if (!confirm('This will deactivate your current key. Continue?')) return;
+      const res = await fetch(`${API_BASE}/portal/rotate-key`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        currentApiKey = data.new_api_key;
+        apiKeyRevealed = true;
+        updateApiKeyDisplay();
+        showToast('API key rotated successfully.', 'success');
+      } else {
+        showToast('Key rotation failed.', 'error');
+      }
     }
 
-    // ----- UI Helpers -----
-    function toggleKey() {
-      apiKeyRevealed = !apiKeyRevealed
-      const el = document.getElementById('apiKeyDisplay')
+    async function buyCredits(priceId) {
+      const res = await fetch(`${API_BASE}/portal/create-checkout-session`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ price_id: priceId })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        window.location.href = data.url;
+      } else {
+        showToast('Could not start checkout.', 'error');
+      }
+    }
+
+    function updateCreditDisplay() {
+      const el = document.getElementById('credit-balance');
+      if (el) el.textContent = formatNumber(credits);
+      const lowEl = document.getElementById('credit-low');
+      if (lowEl) {
+        if (credits < 10) {
+          lowEl.innerHTML = '<span style="color:var(--error)">🔴 Credits almost empty. Translation may stop soon.</span>';
+        } else if (credits < 100) {
+          lowEl.innerHTML = '<span style="color:var(--warning)">⚠ Only ' + credits + ' credits remaining. Consider buying more.</span>';
+        } else {
+          lowEl.innerHTML = '';
+        }
+      }
+    }
+
+    function updateApiKeyDisplay() {
+      const display = document.getElementById('api-key-display');
+      if (!display) return;
       if (apiKeyRevealed) {
-        el.textContent = currentApiKey
-        document.getElementById('revealBtn').textContent = 'Hide'
+        display.textContent = currentApiKey;
+        const btn = document.getElementById('btn-show-key');
+        if (btn) btn.textContent = 'Hide';
       } else {
-        el.textContent = '••••••••••••••••••••••••••••••••'
-        document.getElementById('revealBtn').textContent = 'Show'
+        display.textContent = currentApiKey.substring(0, 12) + '••••••••••••••••••••••••';
+        const btn = document.getElementById('btn-show-key');
+        if (btn) btn.textContent = 'Show';
       }
+    }
+
+    function toggleKey() {
+      apiKeyRevealed = !apiKeyRevealed;
+      updateApiKeyDisplay();
     }
 
     function copyKey() {
-      navigator.clipboard.writeText(currentApiKey)
-      alert('API key copied!')
+      navigator.clipboard.writeText(currentApiKey);
+      showToast('API key copied to clipboard.', 'success');
     }
 
-    function showBuyError(msg) {
-      const err = document.getElementById('buyError')
-      err.textContent = msg
-      err.classList.remove('hidden')
-      setTimeout(() => err.classList.add('hidden'), 5000)
+    function renderUsageChart() {
+      const ctx = document.getElementById('usage-chart');
+      if (!ctx) return;
+      const context = ctx.getContext('2d');
+      if (window.chart) window.chart.destroy();
+      const labels = Object.keys(dailyUsage).sort();
+      const values = labels.map(d => dailyUsage[d]);
+      window.chart = new Chart(context, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{ label: 'Translations', data: values, backgroundColor: '#16C7D9', borderRadius: 4 }]
+        },
+        options: {
+          responsive: true,
+          scales: { y: { beginAtZero: true, ticks: { color: '#94A3B8' } }, x: { ticks: { color: '#94A3B8' } } },
+          plugins: { legend: { display: false } }
+        }
+      });
     }
 
-    // ----- Dashboard Load -----
-    async function loadDashboard() {
-      const { data: { session } } = await supabaseClient.auth.getSession()
-      if (!session) {
-        document.getElementById('login').classList.remove('hidden')
-        document.getElementById('dashboard').classList.add('hidden')
-        return
+    function renderInvoices() {
+      const list = document.getElementById('invoice-list');
+      if (!list) return;
+      if (invoices.length === 0) {
+        list.innerHTML = '<div class="muted">No invoices yet.</div>';
+        return;
       }
-      document.getElementById('login').classList.add('hidden')
-      document.getElementById('dashboard').classList.remove('hidden')
-      const token = session.access_token
+      list.innerHTML = invoices.map(inv => `
+        <div class="card" style="display:flex; justify-content:space-between; padding:12px; margin-bottom:8px;">
+          <div><strong>${new Date(inv.created_at).toLocaleDateString()}</strong><br><span class="muted">${inv.stripe_checkout_session_id}</span></div>
+          <div style="text-align:right"><span class="mono">+${inv.credits_purchased} credits</span><br>$${(inv.amount_total/100).toFixed(2)}</div>
+        </div>
+      `).join('');
+    }
 
-      // User info
-      const user = session.user
-      document.getElementById('userEmail').textContent = user.email
-      const name = user.email.split('@')[0]
-      document.getElementById('userName').textContent = name.charAt(0).toUpperCase() + name.slice(1)
-      const avatar = document.getElementById('avatar')
-      avatar.textContent = name.charAt(0).toUpperCase()
-      avatar.style.background = '#dbeafe'
-      avatar.style.color = '#1e40af'
+    function buildApp() {
+      document.getElementById('app').innerHTML = `
+        <div class="app">
+          <div class="sidebar">
+            <div class="logo">◈ FHIR</div>
+            <nav>
+              <a data-section="dashboard" class="active">📊 Dashboard</a>
+              <a data-section="usage">📈 Usage</a>
+              <a data-section="billing">💳 Billing</a>
+              <a data-section="docs">📘 Docs</a>
+              <a data-section="explorer">🧪 Explorer</a>
+              <a data-section="settings">⚙ Settings</a>
+            </nav>
+          </div>
+          <div class="main">
+            <div class="topbar">
+              <span>● Production</span>
+              <div class="user">
+                <span id="user-email" class="muted"></span>
+                <button onclick="signOut()" class="btn btn-secondary btn-sm">Sign Out</button>
+              </div>
+            </div>
+            <div class="content" id="content-area">
+              <div id="section-dashboard" class="section active">
+                <h2>Dashboard</h2>
+                <div class="grid grid-2">
+                  <div class="card">
+                    <div class="card-header"><span class="card-title">Available Credits</span></div>
+                    <h1 id="credit-balance">...</h1>
+                    <button onclick="navigate('billing')" class="btn btn-primary">+ Buy Credits</button>
+                  </div>
+                  <div class="card">
+                    <div class="card-header"><span class="card-title">Translation Health</span></div>
+                    <div>99.7% success</div>
+                  </div>
+                </div>
+                <div id="credit-low"></div>
+                <div class="card">
+                  <div class="card-header"><span class="card-title">API Key</span></div>
+                  <div id="api-key-display" class="key-display">••••••••••••••••••••••••</div>
+                  <div class="key-row">
+                    <button id="btn-show-key" onclick="toggleKey()" class="btn btn-secondary">Show</button>
+                    <button onclick="copyKey()" class="btn btn-secondary">Copy</button>
+                    <button onclick="rotateKey()" class="btn btn-danger">Rotate</button>
+                  </div>
+                </div>
+                <div class="card">
+                  <div class="card-header"><span class="card-title">Translations (Last 7 Days)</span></div>
+                  <canvas id="usage-chart"></canvas>
+                </div>
+                <div class="card">
+                  <div class="card-header"><span class="card-title">Get Started</span></div>
+                  <p>① Copy your API key → ② Send HL7 → ③ Receive FHIR</p>
+                  <button onclick="navigate('docs')" class="btn btn-primary">Quick Start</button>
+                </div>
+              </div>
 
-      // API key & credits
-      try {
-        const meRes = await fetch(`${API_BASE}/portal/me`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        const meData = await meRes.json()
-        currentApiKey = meData.api_key
-        document.getElementById('credits').textContent = meData.credits_remaining
-        if (!apiKeyRevealed) {
-          document.getElementById('apiKeyDisplay').textContent = '••••••••••••••••••••••••••••••••'
+              <div id="section-usage" class="section">
+                <h2>Usage</h2>
+                <div class="card">
+                  <div class="card-header"><span class="card-title">Translation Volume</span></div>
+                  <canvas id="usage-chart-2"></canvas>
+                </div>
+              </div>
+
+              <div id="section-billing" class="section">
+                <h2>Buy Credits</h2>
+                <div class="grid grid-2">
+                  <div class="card">
+                    <h3>Starter</h3>
+                    <p>100 credits</p>
+                    <p>$30</p>
+                    <button onclick="buyCredits(PRICE_IDS.starter)" class="btn btn-primary">Buy</button>
+                  </div>
+                  <div class="card">
+                    <h3>Growth</h3>
+                    <p>10,000 credits</p>
+                    <p>$2,000</p>
+                    <button onclick="buyCredits(PRICE_IDS.growth)" class="btn btn-primary">Buy</button>
+                  </div>
+                  <div class="card">
+                    <h3>Volume</h3>
+                    <p>75,000 credits</p>
+                    <p>$9,000</p>
+                    <button onclick="buyCredits(PRICE_IDS.volume)" class="btn btn-primary">Buy</button>
+                  </div>
+                </div>
+                <h3 style="margin-top:24px;">Invoice History</h3>
+                <div id="invoice-list"></div>
+              </div>
+
+              <div id="section-docs" class="section">
+                <h2>Quick Start</h2>
+                <div class="card">
+                  <p>1. Copy your API key</p>
+                  <div id="doc-api-key" class="key-display">••••••••••••••••••••••••</div>
+                  <button onclick="copyKey()" class="btn btn-secondary btn-sm" style="margin-top:8px;">Copy</button>
+                  <br/><br/>
+                  <p>2. Send a request</p>
+                  <pre class="mono" style="background:var(--surface-elevated); padding:12px; border-radius:8px;">
+curl -X POST https://quack-xzno.onrender.com/v1/translate \\
+  -H "X-API-Key: <span id="doc-key-inline">YOUR_KEY</span>" \\
+  -H "Content-Type: text/plain" \\
+  --data-binary @message.hl7
+                  </pre>
+                  <p class="muted">Include an optional X-Idempotency-Key for safe retries.</p>
+                </div>
+              </div>
+
+              <div id="section-explorer" class="section">
+                <h2>API Explorer</h2>
+                <div class="card">
+                  <textarea id="explorer-hl7" class="input" style="height:120px; font-family:var(--mono);">MSH|^~\&|LAB|HOSPITAL|APP|20260809120000||ADT^A01|MSG001|P|2.5
+PID|1||123456||DOE^JOHN</textarea>
+                  <input id="explorer-idem" class="input" style="margin-top:8px;" placeholder="Idempotency Key (optional)" value="">
+                  <button onclick="exploreTranslate()" class="btn btn-primary" style="margin-top:12px;">▶ Translate</button>
+                  <div id="explorer-response" style="margin-top:16px;"></div>
+                </div>
+              </div>
+
+              <div id="section-settings" class="section">
+                <h2>Settings</h2>
+                <div class="card">
+                  <p>Email: <span id="settings-email"></span></p>
+                  <p>Member since: <span id="settings-joined"></span></p>
+                </div>
+                <div class="card">
+                  <h3>API Key</h3>
+                  <div id="settings-api-key" class="key-display">••••••••••••••••••••••••</div>
+                  <div class="key-row">
+                    <button onclick="toggleKey()" class="btn btn-secondary">Show</button>
+                    <button onclick="copyKey()" class="btn btn-secondary">Copy</button>
+                    <button onclick="rotateKey()" class="btn btn-danger">Rotate</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="toast-container" style="position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:2000;"></div>
+        </div>
+      `;
+
+      $$('.sidebar nav a').forEach(a => a.addEventListener('click', (e) => {
+        e.preventDefault();
+        navigate(a.dataset.section);
+      }));
+
+      // update api key display in docs and settings
+      document.getElementById('doc-api-key').textContent = 'YOUR_KEY';
+      document.getElementById('settings-api-key').textContent = '••••••••••••••••••••••••';
+    }
+
+    async function handleAuthChange(event, s) {
+      if (s) {
+        session = s;
+        document.getElementById('app').innerHTML = '';
+        buildApp();
+        document.getElementById('user-email').textContent = s.user.email;
+        document.getElementById('settings-email').textContent = s.user.email;
+        document.getElementById('settings-joined').textContent = new Date(s.user.created_at).toLocaleDateString();
+        const docInline = document.getElementById('doc-key-inline');
+        if (docInline) docInline.textContent = 'YOUR_API_KEY';
+        navigate('dashboard');
+      } else {
+        showLogin();
+      }
+    }
+
+    function showLogin() {
+      document.getElementById('app').innerHTML = `
+        <div class="login-container">
+          <div class="login-card">
+            <h1 style="margin-bottom:8px;">◈ FHIR Interop Engine</h1>
+            <p class="muted" style="margin-bottom:24px;">HL7v2 → FHIR R4 Translation</p>
+            <input id="login-email" class="input" placeholder="Enter your email" type="email">
+            <button id="btn-login" class="btn btn-primary" style="width:100%; margin-top:16px;">Send Magic Link</button>
+            <p id="login-msg" class="muted" style="margin-top:12px;"></p>
+          </div>
+        </div>
+      `;
+      document.getElementById('btn-login').addEventListener('click', async () => {
+        const email = document.getElementById('login-email').value;
+        const btn = document.getElementById('btn-login');
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+        const { error } = await supabase.auth.signInWithOtp({ email });
+        if (error) {
+          document.getElementById('login-msg').textContent = error.message;
         } else {
-          document.getElementById('apiKeyDisplay').textContent = currentApiKey
+          document.getElementById('login-msg').textContent = 'Magic link sent! Check your email.';
         }
-      } catch (e) {
-        console.error('Failed to load profile:', e)
-      }
-
-      // Usage chart
-      try {
-        const usageRes = await fetch(`${API_BASE}/portal/usage`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        const usageData = await usageRes.json()
-        const labels = Object.keys(usageData.daily_usage)
-        const values = Object.values(usageData.daily_usage)
-        const ctx = document.getElementById('usageChart').getContext('2d')
-        // Destroy previous chart if exists
-        if (window.chart) window.chart.destroy()
-        window.chart = new Chart(ctx, {
-          type: 'bar',
-          data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#2563eb' }] },
-          options: { scales: { y: { beginAtZero: true } } }
-        })
-      } catch (e) {
-        console.error('Usage fetch error:', e)
-      }
-
-      // Invoices
-      try {
-        const invRes = await fetch(`${API_BASE}/portal/invoices`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        const invData = await invRes.json()
-        const list = document.getElementById('invoiceList')
-        list.innerHTML = ''
-        if (invData.invoices.length === 0) {
-          list.innerHTML = '<li class="text-small">No invoices yet</li>'
-        } else {
-          invData.invoices.forEach(inv => {
-            const li = document.createElement('li')
-            li.innerHTML = `<strong>$${(inv.amount_total/100).toFixed(2)}</strong> – ${inv.credits_purchased} credits – <span class="text-small">${new Date(inv.created_at).toLocaleDateString()}</span>`
-            list.appendChild(li)
-          })
-        }
-      } catch (e) {
-        console.error('Invoice fetch error:', e)
-      }
+        btn.disabled = false;
+        btn.textContent = 'Send Magic Link';
+      });
     }
 
-    // ----- Key Management -----
-    async function rotateKey() {
-      const token = (await supabaseClient.auth.getSession()).data.session?.access_token
-      const res = await fetch(`${API_BASE}/portal/rotate-key`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      const data = await res.json()
-      currentApiKey = data.new_api_key
-      apiKeyRevealed = true
-      document.getElementById('apiKeyDisplay').textContent = currentApiKey
-      document.getElementById('revealBtn').textContent = 'Hide'
-      alert('API key rotated! Old key deactivated.')
+    function signOut() {
+      supabase.auth.signOut();
     }
 
-    // ----- Stripe Buy -----
-    async function buyCredits(priceId) {
-      if (!stripe) {
-        showBuyError('Payment system unavailable. Please try later.')
-        return
-      }
-      const token = (await supabaseClient.auth.getSession()).data.session?.access_token
-      try {
-        const res = await fetch(`${API_BASE}/portal/create-checkout-session`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ price_id: priceId })
-        })
-        const data = await res.json()
-        if (data.url) {
-          window.location.href = data.url
-        } else {
-          showBuyError(data.detail || 'Could not start checkout')
-        }
-      } catch (e) {
-        showBuyError('Network error. Please try again.')
-      }
+    async function exploreTranslate() {
+      const hl7 = document.getElementById('explorer-hl7').value;
+      const idem = document.getElementById('explorer-idem').value;
+      const headers = { 'Content-Type': 'text/plain', 'X-API-Key': currentApiKey };
+      if (idem) headers['X-Idempotency-Key'] = idem;
+      const start = Date.now();
+      const res = await fetch(`${API_BASE}/v1/translate`, { method: 'POST', headers, body: hl7 });
+      const latency = Date.now() - start;
+      const body = await res.text();
+      let pretty = '';
+      try { pretty = JSON.stringify(JSON.parse(body), null, 2); } catch { pretty = body; }
+      document.getElementById('explorer-response').innerHTML = `
+        <div class="card">
+          <span class="badge ${res.ok ? 'success' : 'error'}">${res.status} ${res.statusText}</span>
+          <span class="muted" style="margin-left:8px;">${latency}ms</span>
+          <pre class="mono" style="background:var(--surface-elevated); padding:12px; margin-top:8px; border-radius:8px; overflow-x:auto;">${escapeHtml(pretty)}</pre>
+        </div>
+      `;
     }
 
-    // Init
-    window.onload = () => {
-      supabaseClient.auth.onAuthStateChange((event, session) => {
-        if (session) loadDashboard()
-        else {
-          document.getElementById('login').classList.remove('hidden')
-          document.getElementById('dashboard').classList.add('hidden')
-        }
-      })
-      loadDashboard()
-    }
+    supabase.auth.onAuthStateChange(handleAuthChange);
+    handleAuthChange(null, (await supabase.auth.getSession()).data.session);
   </script>
 </body>
 </html>
