@@ -175,13 +175,18 @@ async def translate(request: Request):
                 cached = check_idempotency(api_key, idem_key)
                 if cached:
                     return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
-                # If still no cached (should not happen), abort
                 raise HTTPException(status_code=409, detail="Idempotency conflict, retry")
         except HTTPException:
             raise
         except Exception as e:
-            logger.error(f"Idempotency insert error: {e}")
-            raise HTTPException(status_code=503, detail="Idempotency service error")
+            # Insert failed – most likely a unique constraint violation (replay)
+            logger.warning(f"Idempotency insert conflict (likely replay): {e}")
+            # Fetch the cached response if it exists
+            cached = check_idempotency(api_key, idem_key)
+            if cached:
+                return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
+            # If still no cached response, retry later
+            raise HTTPException(status_code=409, detail="Idempotency conflict, retry")
 
     if not api_key_exists(api_key):
         raise HTTPException(status_code=401, detail="Invalid API key")
