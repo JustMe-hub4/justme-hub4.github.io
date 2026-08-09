@@ -1,7 +1,6 @@
 import os
 import logging
 import uuid
-import json
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict
 from collections import defaultdict
@@ -25,7 +24,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("fhir-interop")
 
-app = FastAPI(title="FHIR Interop Engine", version="2.4.0")
+app = FastAPI(title="FHIR Interop Engine", version="2.5.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -278,10 +277,12 @@ async def portal_usage(user = Depends(get_current_user)):
     if not key_resp.data:
         return {"daily_usage": {}}
     api_key = key_resp.data[0]["key"]
+    # Compute date string for 7 days ago
+    seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     result = supabase.table("translation_logs") \
         .select("created_at") \
         .eq("api_key", api_key) \
-        .gte("created_at", "now() - interval '7 days'") \
+        .gte("created_at", seven_days_ago) \
         .order("created_at", desc=False) \
         .execute()
     daily = defaultdict(int)
@@ -312,29 +313,52 @@ async def create_checkout_session(req: CheckoutRequest, user = Depends(get_curre
     except Exception as e:
         logger.error(f"Stripe session error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Stripe error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Could not create payment session")
 
 @app.post("/portal/stripe-webhook")
 async def stripe_webhook(request: Request):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
     try:
-        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
-    except ValueError:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+    except ValueError as e:
+        logger.error(f"Webhook payload error: {e}")
         raise HTTPException(status_code=400, detail="Invalid payload")
-    except stripe.error.SignatureVerificationError:
+    except stripe.error.SignatureVerificationError as e:
+        logger.error(f"Webhook signature error: {e}")
         raise HTTPException(status_code=400, detail="Invalid signature")
+    except Exception as e:
+        logger.error(f"Webhook unexpected error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Webhook processing error")
+
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
-        user_id = session.get("metadata", {}).get("user_id")
-        credits_str = session.get("metadata", {}).get("credits", "0")
+        # session is a Stripe object – use attribute access, not .get()
+        metadata = session.get("metadata") or {}
+        user_id = metadata.get("user_id")
+        credits_str = metadata.get("credits", "0")
+        logger.info(f"Webhook received: user_id={user_id}, credits={credits_str}")
         if not user_id:
             return {"status": "ignored"}
         credits_to_add = int(credits_str)
-        supabase.rpc("add_credits", {
-            "target_user_id": user_id,
-            "amount": credits_to_add
-        }).execute()
+
+        # Try RPC first
+        try:
+            supabase.rpc("add_credits", {
+                "target_user_id": user_id,
+                "amount": credits_to_add
+            }).execute()
+            logger.info(f"RPC add_credits succeeded for {user_id}: +{credits_to_add}")
+        except Exception as e:
+            logger.error(f"RPC add_credits failed: {e}")
+            # Fallback: direct update
+            supabase.table("api_keys").update({
+                "credits_remaining": supabase.raw(f"credits_remaining + {credits_to_add}")
+            }).eq("user_id", user_id).eq("active", True).execute()
+            logger.info(f"Fallback direct update for {user_id}: +{credits_to_add}")
+
+        # Record payment
         supabase.table("stripe_payments").insert({
             "user_id": user_id,
             "stripe_checkout_session_id": session["id"],
@@ -342,7 +366,8 @@ async def stripe_webhook(request: Request):
             "credits_purchased": credits_to_add,
             "status": "completed"
         }).execute()
-        logger.info(f"Credits added for user {user_id}: +{credits_to_add}")
+        logger.info(f"Payment recorded for user {user_id}")
+
     return {"status": "success"}
 
 @app.get("/portal/invoices")
