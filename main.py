@@ -100,6 +100,17 @@ def store_idempotency(api_key: str, idem_key: str, response_data: dict):
     except Exception as e:
         logger.error(f"Idempotency store error: {e}")
 
+
+def json_safe(obj):
+    """Recursively convert date/datetime objects to ISO strings."""
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {k: json_safe(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [json_safe(i) for i in obj]
+    return obj
+
 def transform_hl7_to_fhir(hl7_message: str) -> dict:
     clean = hl7_message.replace("\n", "\r").strip()
     msg = parse_message(clean)
@@ -133,7 +144,7 @@ def transform_hl7_to_fhir(hl7_message: str) -> dict:
         BundleEntry(resource=encounter, request=BundleEntryRequest(method="POST", url="Encounter"))
     ]
     bundle = Bundle(type="batch", entry=entries, id=str(uuid.uuid4()))
-    return bundle.dict()
+    return json_safe(bundle.dict())
 
 # -------------------- Core Endpoints --------------------
 @app.get("/health")
