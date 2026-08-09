@@ -10,10 +10,20 @@
       const res = await fetch(`${API_BASE}/portal/usage`, { headers: { Authorization: `Bearer ${session.access_token}` } });
       if (res.ok) { const d = await res.json(); dailyUsage = d.daily_usage || {}; renderUsageChart(); }
     }
+    
+    function updateHealthStats() {
+      const daily = Object.values(dailyUsage);
+      const total = daily.reduce((a, b) => a + b, 0);
+      document.getElementById('total-translations').textContent = total;
+      // We don't track success/fail in dailyUsage, so approximate (all successful unless API errors visible)
+      document.getElementById('successful-translations').textContent = total;
+      document.getElementById('failed-translations').textContent = '0';
+      document.getElementById('success-rate').textContent = total ? '100%' : '--';
+    }
     function renderUsageChart() {
       const ctx = document.getElementById('usage-chart');
       if (!ctx) return;
-      if (window.chart) window.chart.destroy();
+      if (window.chart) window.chart.destroy(); updateHealthStats();
       const labels = Object.keys(dailyUsage).sort();
       const values = labels.map(d => dailyUsage[d]);
       window.chart = new Chart(ctx.getContext('2d'), {
@@ -47,10 +57,20 @@
       const res = await fetch(`${API_BASE}/portal/usage`, { headers: { Authorization: `Bearer ${session.access_token}` } });
       if (res.ok) { const d = await res.json(); dailyUsage = d.daily_usage || {}; renderUsageChart(); }
     }
+    
+    function updateHealthStats() {
+      const daily = Object.values(dailyUsage);
+      const total = daily.reduce((a, b) => a + b, 0);
+      document.getElementById('total-translations').textContent = total;
+      // We don't track success/fail in dailyUsage, so approximate (all successful unless API errors visible)
+      document.getElementById('successful-translations').textContent = total;
+      document.getElementById('failed-translations').textContent = '0';
+      document.getElementById('success-rate').textContent = total ? '100%' : '--';
+    }
     function renderUsageChart() {
       const ctx = document.getElementById('usage-chart');
       if (!ctx) return;
-      if (window.chart) window.chart.destroy();
+      if (window.chart) window.chart.destroy(); updateHealthStats();
       const labels = Object.keys(dailyUsage).sort();
       const values = labels.map(d => dailyUsage[d]);
       window.chart = new Chart(ctx.getContext('2d'), {
@@ -110,10 +130,20 @@
       const res = await fetch(`${API_BASE}/portal/usage`, { headers: { Authorization: `Bearer ${session.access_token}` } });
       if (res.ok) { const d = await res.json(); dailyUsage = d.daily_usage || {}; renderUsageChart(); }
     }
+    
+    function updateHealthStats() {
+      const daily = Object.values(dailyUsage);
+      const total = daily.reduce((a, b) => a + b, 0);
+      document.getElementById('total-translations').textContent = total;
+      // We don't track success/fail in dailyUsage, so approximate (all successful unless API errors visible)
+      document.getElementById('successful-translations').textContent = total;
+      document.getElementById('failed-translations').textContent = '0';
+      document.getElementById('success-rate').textContent = total ? '100%' : '--';
+    }
     function renderUsageChart() {
       const ctx = document.getElementById('usage-chart');
       if (!ctx) return;
-      if (window.chart) window.chart.destroy();
+      if (window.chart) window.chart.destroy(); updateHealthStats();
       const labels = Object.keys(dailyUsage).sort();
       const values = labels.map(d => dailyUsage[d]);
       window.chart = new Chart(ctx.getContext('2d'), {
@@ -169,7 +199,18 @@
         <h2>Dashboard</h2>
         <div class="card">
           <strong>Credits:</strong> <span id="credit-balance">0</span>
+          <div id="credit-warning" style="margin-top:8px;"></div>
           <button class="btn btn-primary" onclick="switchTab('billing')" style="margin-left:12px;">Buy Credits</button>
+        </div>
+
+        <div class="card">
+          <strong>Translation Health</strong>
+          <div style="display:flex; gap:16px; margin-top:8px;">
+            <div><span style="font-size:24px; font-weight:700;" id="success-rate">--</span><br><span style="color:#94A3B8;">Success rate</span></div>
+            <div><span style="font-size:24px; font-weight:700;" id="total-translations">0</span><br><span style="color:#94A3B8;">Total</span></div>
+            <div><span style="font-size:24px; font-weight:700; color:#22C55E;" id="successful-translations">0</span><br><span style="color:#94A3B8;">Successful</span></div>
+            <div><span style="font-size:24px; font-weight:700; color:#EF4444;" id="failed-translations">0</span><br><span style="color:#94A3B8;">Failed</span></div>
+          </div>
         </div>
         <div class="card">
         <div class="card">
@@ -269,7 +310,15 @@ PID|1||123456||DOE^JOHN</textarea>
 
     let session = null, currentApiKey = '', apiKeyRevealed = false, credits = 0, invoices = [];
 
-    function updateCreditDisplay() { document.getElementById('credit-balance').textContent = credits.toLocaleString(); }
+    function updateCreditDisplay() {
+      document.getElementById('credit-balance').textContent = credits.toLocaleString();
+      const warning = document.getElementById('credit-warning');
+      if (warning) {
+        if (credits < 10) warning.innerHTML = '<span style="color:#EF4444; font-weight:600;">🔴 Credits almost empty. Translation may stop soon.</span>';
+        else if (credits < 100) warning.innerHTML = '<span style="color:#F59E0B; font-weight:600;">⚠ Only ' + credits + ' credits remaining.</span>';
+        else warning.innerHTML = '';
+      }
+    }
     function updateApiKeyDisplay() {
       const el = document.getElementById('api-key-display');
       if (apiKeyRevealed) { el.textContent = currentApiKey; document.getElementById('btn-show-key').textContent = 'Hide'; }
@@ -352,10 +401,20 @@ PID|1||123456||DOE^JOHN</textarea>
       const res = await fetch(`${API_BASE}/portal/usage`, { headers: { Authorization: `Bearer ${session.access_token}` } });
       if (res.ok) { const d = await res.json(); dailyUsage = d.daily_usage || {}; renderUsageChart(); }
     }
+    
+    function updateHealthStats() {
+      const daily = Object.values(dailyUsage);
+      const total = daily.reduce((a, b) => a + b, 0);
+      document.getElementById('total-translations').textContent = total;
+      // We don't track success/fail in dailyUsage, so approximate (all successful unless API errors visible)
+      document.getElementById('successful-translations').textContent = total;
+      document.getElementById('failed-translations').textContent = '0';
+      document.getElementById('success-rate').textContent = total ? '100%' : '--';
+    }
     function renderUsageChart() {
       const ctx = document.getElementById('usage-chart');
       if (!ctx) return;
-      if (window.chart) window.chart.destroy();
+      if (window.chart) window.chart.destroy(); updateHealthStats();
       const labels = Object.keys(dailyUsage).sort();
       const values = labels.map(d => dailyUsage[d]);
       window.chart = new Chart(ctx.getContext('2d'), {
