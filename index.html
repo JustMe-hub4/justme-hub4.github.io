@@ -9,17 +9,9 @@
   <script src="https://js.stripe.com/v3/"></script>
   <style>
     :root {
-      --bg: #07111F;
-      --surface: #101D2D;
-      --surface-elevated: #162438;
-      --border: #1E334A;
-      --primary: #16C7D9;
-      --success: #22C55E;
-      --warning: #F59E0B;
-      --error: #EF4444;
-      --text: #F8FAFC;
-      --text-secondary: #CBD5E1;
-      --text-muted: #94A3B8;
+      --bg: #07111F; --surface: #101D2D; --surface-elevated: #162438; --border: #1E334A;
+      --primary: #16C7D9; --success: #22C55E; --warning: #F59E0B; --error: #EF4444;
+      --text: #F8FAFC; --text-secondary: #CBD5E1; --text-muted: #94A3B8;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
@@ -48,6 +40,9 @@
     .toast-error { background: var(--error); }
     .toast-info { background: var(--primary); color: #07111F; }
     @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    /* Modal */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-box { background: var(--surface); border-radius: 12px; padding: 30px; width: 400px; border: 1px solid var(--border); }
   </style>
 </head>
 <body>
@@ -96,7 +91,7 @@
           <div class="flex-row">
             <button id="btn-show-key" class="btn btn-secondary" onclick="toggleKey()">Show</button>
             <button class="btn btn-secondary" onclick="copyKey()">Copy</button>
-            <button class="btn btn-danger" onclick="rotateKey()">Rotate</button>
+            <button class="btn btn-danger" onclick="showRotateModal()">Rotate</button>
           </div>
         </div>
         <div class="card">
@@ -121,6 +116,21 @@ PID|1||123456||DOE^JOHN</textarea><input id="explorer-idem" style="width:100%; p
       <div id="tab-settings" class="tab-content hidden"><h2>Settings</h2><div class="card"><p>Email: <span id="settings-email"></span></p><p>Member since: <span id="settings-joined"></span></p></div></div>
     </div>
   </div>
+
+  <!-- Rotate Key Modal -->
+  <div id="rotate-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h3>Rotate API Key</h3>
+      <p>Your current key will be <strong>immediately deactivated</strong>. Any integrations using it will receive 401 errors.</p>
+      <p>Credits will be transferred to the new key.</p>
+      <div class="flex-row" style="justify-content: flex-end; margin-top: 20px;">
+        <button class="btn btn-secondary" onclick="closeRotateModal()">Cancel</button>
+        <button class="btn btn-danger" id="confirm-rotate-btn" onclick="rotateKey()">Rotate Key</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
   <div id="toast-container" style="position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:2000;"></div>
 
   <script>
@@ -132,6 +142,7 @@ PID|1||123456||DOE^JOHN</textarea><input id="explorer-idem" style="width:100%; p
     let stripe = typeof Stripe !== 'undefined' ? Stripe(STRIPE_KEY) : null;
     let session = null, currentApiKey = '', apiKeyRevealed = false, credits = 0, dailyUsage = {}, invoices = [];
 
+    // ---------- Toast ----------
     function showToast(msg, type = 'info') {
       const container = document.getElementById('toast-container');
       const toast = document.createElement('div');
@@ -140,6 +151,8 @@ PID|1||123456||DOE^JOHN</textarea><input id="explorer-idem" style="width:100%; p
       container.appendChild(toast);
       setTimeout(() => toast.remove(), 4000);
     }
+
+    // ---------- Navigation ----------
     function switchTab(tab) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
       const target = document.getElementById('tab-'+tab);
@@ -151,6 +164,8 @@ PID|1||123456||DOE^JOHN</textarea><input id="explorer-idem" style="width:100%; p
       if (tab === 'dashboard' || tab === 'usage') fetchUsage();
       if (tab === 'dashboard' || tab === 'billing') fetchInvoices();
     }
+
+    // ---------- API Calls ----------
     async function fetchProfile() {
       const res = await fetch(`${API_BASE}/portal/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
       if (res.ok) { const d = await res.json(); credits = d.credits_remaining; currentApiKey = d.api_key; updateCreditDisplay(); updateApiKeyDisplay(); }
@@ -171,19 +186,25 @@ PID|1||123456||DOE^JOHN</textarea><input id="explorer-idem" style="width:100%; p
     }
     function toggleKey() { apiKeyRevealed = !apiKeyRevealed; updateApiKeyDisplay(); }
     function copyKey() { navigator.clipboard.writeText(currentApiKey); showToast('API key copied!', 'success'); }
+
+    // ---------- Key Rotation ----------
+    function showRotateModal() { document.getElementById('rotate-modal').classList.remove('hidden'); }
+    function closeRotateModal() { document.getElementById('rotate-modal').classList.add('hidden'); }
     async function rotateKey() {
-      if (!confirm('Deactivate current key?')) return;
+      closeRotateModal();
       const res = await fetch(`${API_BASE}/portal/rotate-key`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } });
       if (res.ok) {
         const d = await res.json();
         currentApiKey = d.new_api_key;
-        credits = d.credits_remaining;
+        credits = d.credits_remaining;   // <-- transfer credits
         apiKeyRevealed = true;
         updateApiKeyDisplay();
         updateCreditDisplay();
         showToast('Key rotated! Credits transferred.', 'success');
       } else showToast('Rotation failed.', 'error');
     }
+
+    // ---------- Usage & Chart ----------
     async function fetchUsage() {
       const res = await fetch(`${API_BASE}/portal/usage`, { headers: { Authorization: `Bearer ${session.access_token}` } });
       if (res.ok) { const d = await res.json(); dailyUsage = d.daily_usage || {}; renderUsageChart(); }
@@ -202,10 +223,11 @@ PID|1||123456||DOE^JOHN</textarea><input id="explorer-idem" style="width:100%; p
       // Update health stats
       const total = values.reduce((a,b)=>a+b,0);
       document.getElementById('total-translations').textContent = total;
-      document.getElementById('successful-translations').textContent = total; // simplified
+      document.getElementById('successful-translations').textContent = total;
       document.getElementById('failed-translations').textContent = 0;
       document.getElementById('success-rate').textContent = total ? '100%' : '--';
     }
+
     async function fetchInvoices() {
       const res = await fetch(`${API_BASE}/portal/invoices`, { headers: { Authorization: `Bearer ${session.access_token}` } });
       if (res.ok) {
@@ -216,6 +238,7 @@ PID|1||123456||DOE^JOHN</textarea><input id="explorer-idem" style="width:100%; p
         else list.innerHTML = invoices.map(inv => `${new Date(inv.created_at).toLocaleDateString()} - $${(inv.amount_total/100).toFixed(2)} - ${inv.credits_purchased} credits`).join('<br>');
       }
     }
+
     function signOut() { supabaseClient.auth.signOut(); }
     async function buyCredits(priceId) {
       if (!stripe) { showToast('Payment unavailable.', 'error'); return; }
@@ -236,6 +259,7 @@ PID|1||123456||DOE^JOHN</textarea><input id="explorer-idem" style="width:100%; p
       document.getElementById('explorer-response').innerHTML = `<div class="card"><span style="color:${res.ok?'var(--success)':'var(--error)'}">${res.status}</span> ${latency}ms<pre style="background:var(--surface-elevated); padding:12px; margin-top:8px; overflow-x:auto;">${pretty}</pre></div>`;
     }
 
+    // ---------- Auth ----------
     document.getElementById('btn-login').addEventListener('click', async () => {
       const email = document.getElementById('login-email').value;
       const btn = document.getElementById('btn-login'); btn.disabled = true; btn.textContent = 'Sending...';
@@ -244,30 +268,43 @@ PID|1||123456||DOE^JOHN</textarea><input id="explorer-idem" style="width:100%; p
       btn.disabled = false; btn.textContent = 'Send Magic Link';
     });
 
-    supabaseClient.auth.onAuthStateChange((event, authSession) => {
-      if (authSession) {
-        session = authSession;
-        document.getElementById('login-container').classList.add('hidden');
-        document.getElementById('dashboard').classList.remove('hidden');
-        document.getElementById('settings-email').textContent = authSession.user.email;
-        document.getElementById('settings-joined').textContent = new Date(authSession.user.created_at).toLocaleDateString();
-        fetchProfile(); fetchUsage(); fetchInvoices();
-      } else {
-        document.getElementById('login-container').classList.remove('hidden');
-        document.getElementById('dashboard').classList.add('hidden');
-      }
-    });
-    (async () => {
+    // Persistent login: check existing session on page load
+    async function initAuth() {
       const { data } = await supabaseClient.auth.getSession();
       if (data.session) {
         session = data.session;
-        document.getElementById('login-container').classList.add('hidden');
-        document.getElementById('dashboard').classList.remove('hidden');
-        document.getElementById('settings-email').textContent = data.session.user.email;
-        document.getElementById('settings-joined').textContent = new Date(data.session.user.created_at).toLocaleDateString();
-        fetchProfile(); fetchUsage(); fetchInvoices();
+        showDashboard();
+      } else {
+        showLogin();
       }
-    })();
+    }
+
+    function showLogin() {
+      document.getElementById('login-container').classList.remove('hidden');
+      document.getElementById('dashboard').classList.add('hidden');
+    }
+
+    function showDashboard() {
+      document.getElementById('login-container').classList.add('hidden');
+      document.getElementById('dashboard').classList.remove('hidden');
+      document.getElementById('settings-email').textContent = session.user.email;
+      document.getElementById('settings-joined').textContent = new Date(session.user.created_at).toLocaleDateString();
+      fetchProfile();
+      fetchUsage();
+      fetchInvoices();
+    }
+
+    supabaseClient.auth.onAuthStateChange((event, authSession) => {
+      if (authSession) {
+        session = authSession;
+        showDashboard();
+      } else {
+        showLogin();
+      }
+    });
+
+    // Run initial check
+    initAuth();
   </script>
 </body>
 </html>
