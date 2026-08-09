@@ -351,7 +351,7 @@ PID|1||123456||DOE^JOHN</textarea>
     async function rotateKey() {
       if (!confirm('Deactivate current key?')) return;
       const res = await fetch(`${API_BASE}/portal/rotate-key`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } });
-      if (res.ok) { const d = await res.json(); currentApiKey = d.new_api_key; apiKeyRevealed = true; updateApiKeyDisplay(); showToast('Key rotated!', 'success'); }
+      if (res.ok) { const d = await res.json(); currentApiKey = d.new_api_key; credits = d.credits_remaining; apiKeyRevealed = true; updateApiKeyDisplay(); updateCreditDisplay(); showToast('Key rotated!', 'success'); }
       else showToast('Rotation failed.', 'error');
     }
     async function buyCredits(priceId) {

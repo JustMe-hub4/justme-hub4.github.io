@@ -360,7 +360,7 @@ async def rotate_key(user = Depends(get_current_user)):
         "active": True
     }).execute()
     supabase.table("users").update({"api_key": new_key}).eq("id", user_id).execute()
-    return {"new_api_key": new_key}
+    return {"new_api_key": new_key, "credits_remaining": old_credits}
 
 @app.get("/portal/usage")
 async def portal_usage(user = Depends(get_current_user)):
