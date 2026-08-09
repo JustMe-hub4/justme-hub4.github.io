@@ -303,8 +303,8 @@ async def create_checkout_session(req: CheckoutRequest, user = Depends(get_curre
         session = stripe.checkout.Session.create(
             line_items=[{"price": price_id, "quantity": 1}],
             mode="payment",
-            success_url="https://justme-hub4.github.io/QUACK/?session_id={CHECKOUT_SESSION_ID}",
-            cancel_url="https://justme-hub4.github.io/QUACK/",
+            success_url="https://justme-hub4.github.io/?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url="https://justme-hub4.github.io/",
             customer_email=customer_email,
             metadata={"user_id": user_id, "credits": str(credits)}
         )
