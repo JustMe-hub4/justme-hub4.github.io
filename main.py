@@ -25,7 +25,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("fhir-interop")
 
-app = FastAPI(title="FHIR Interop Engine", version="2.6.0")
+app = FastAPI(title="FHIR Interop Engine", version="2.7.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -60,6 +60,9 @@ PRICE_CREDIT_MAP = {
 rate_limit_store: Dict[str, list] = {}
 RATE_LIMIT_WINDOW = 60
 RATE_LIMIT_MAX = 120
+
+# Module‑level lock store – persists across requests (single worker)
+idem_locks: Dict[str, asyncio.Lock] = {}
 
 def check_rate_limit(api_key: str) -> bool:
     now = datetime.now(timezone.utc)
@@ -161,13 +164,13 @@ async def translate(request: Request):
 
     idem_key = request.headers.get("X-Idempotency-Key")
     if idem_key:
-        # Use the global lock store initialized at startup
-        if idem_key not in app.state.idem_locks:
-            app.state.idem_locks[idem_key] = asyncio.Lock()
-        lock = app.state.idem_locks[idem_key]
+        # Create or get the lock for this idempotency key
+        if idem_key not in idem_locks:
+            idem_locks[idem_key] = asyncio.Lock()
+        lock = idem_locks[idem_key]
 
         async with lock:
-            # Only one request with this idempotency key can enter
+            # Now only one request with this idempotency key can be here
             cached = check_idempotency(api_key, idem_key)
             if cached:
                 return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
@@ -207,7 +210,6 @@ async def translate(request: Request):
         }).execute()
 
         if idem_key:
-            # Store the response (upsert, as we always hold the lock)
             store_idempotency(api_key, idem_key, fhir_output)
 
         return fhir_output
@@ -340,8 +342,7 @@ async def stripe_webhook(request: Request):
         raise HTTPException(status_code=500, detail="Webhook processing error")
 
     if event["type"] == "checkout.session.completed":
-        # Convert Stripe object to plain dict to safely use .get()
-        session = event.data.object.to_dict()
+        session = dict(event["data"]["object"])
         metadata = session.get("metadata", {})
         user_id = metadata.get("user_id")
         credits_str = metadata.get("credits", "0")
@@ -350,7 +351,6 @@ async def stripe_webhook(request: Request):
             return {"status": "ignored"}
         credits_to_add = int(credits_str)
 
-        # Try RPC first
         try:
             supabase.rpc("add_credits", {
                 "target_user_id": user_id,
@@ -359,13 +359,11 @@ async def stripe_webhook(request: Request):
             logger.info(f"RPC add_credits succeeded for {user_id}: +{credits_to_add}")
         except Exception as e:
             logger.error(f"RPC add_credits failed: {e}")
-            # Fallback direct update
             supabase.table("api_keys").update({
                 "credits_remaining": supabase.raw(f"credits_remaining + {credits_to_add}")
             }).eq("user_id", user_id).eq("active", True).execute()
             logger.info(f"Fallback direct update for {user_id}: +{credits_to_add}")
 
-        # Record payment
         supabase.table("stripe_payments").insert({
             "user_id": user_id,
             "stripe_checkout_session_id": session["id"],
