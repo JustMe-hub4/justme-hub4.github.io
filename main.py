@@ -310,7 +310,8 @@ async def create_checkout_session(req: CheckoutRequest, user = Depends(get_curre
         )
         return {"url": session.url}
     except Exception as e:
-        logger.error(f"Stripe session error: {e}")
+        logger.error(f"Stripe session error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Stripe error: {str(e)}")
         raise HTTPException(status_code=500, detail="Could not create payment session")
 
 @app.post("/portal/stripe-webhook")
