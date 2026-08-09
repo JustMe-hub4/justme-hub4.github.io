@@ -1,54 +1,112 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>FHIR Interop Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FHIR Interop Engine</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://js.stripe.com/v3/"></script>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 700px; margin: 40px auto; padding: 20px; }
-    #login, #dashboard { display: none; }
-    .card { background: #f9f9f9; padding: 15px; border-radius: 10px; margin: 15px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-    button { padding: 10px 20px; margin: 5px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
-    .primary { background: #007bff; color: white; }
-    .danger { background: #dc3545; color: white; }
-    .copy-btn { font-size: 0.9em; margin-left: 10px; }
-    input[type="email"] { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; }
-    canvas { max-width: 100%; margin-top: 10px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: #f5f7fb; color: #1a1a2e; }
+    .container { max-width: 720px; margin: 0 auto; padding: 2rem 1rem; }
+    .header { text-align: center; margin-bottom: 2rem; }
+    .header h1 { font-size: 2rem; font-weight: 700; color: #0f172a; }
+    .card { background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .flex { display: flex; align-items: center; gap: 1rem; }
+    .avatar { width: 48px; height: 48px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-weight: 600; color: #475569; }
+    .user-info { flex: 1; }
+    .user-email { font-size: 0.9rem; color: #64748b; }
+    .key-row { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
+    .key-display { font-family: monospace; background: #f1f5f9; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; color: #334155; overflow-x: auto; white-space: nowrap; max-width: 320px; }
+    .btn { padding: 0.6rem 1.2rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .btn-danger { background: #ef4444; color: white; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-outline { background: transparent; border: 1px solid #cbd5e1; color: #475569; }
+    .loading { display: inline-block; width: 16px; height: 16px; border: 2px solid #cbd5e1; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 0.5rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hidden { display: none; }
+    .error { color: #ef4444; font-size: 0.85rem; margin-top: 0.5rem; }
+    .success { color: #16a34a; }
+    .usage-chart { margin-top: 1rem; }
+    canvas { max-width: 100%; }
+    ul { list-style: none; padding: 0; }
+    li { padding: 0.5rem 0; border-bottom: 1px solid #f1f5f9; }
+    li:last-child { border-bottom: none; }
+    input[type="email"] { width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; margin: 0.5rem 0; }
+    .mt-2 { margin-top: 0.75rem; }
+    .mb-2 { margin-bottom: 0.75rem; }
+    .text-small { font-size: 0.85rem; color: #64748b; }
+    .tier-btn { margin-right: 0.5rem; margin-bottom: 0.5rem; }
+    .spacer { flex: 1; }
+    @media (max-width: 500px) { .container { padding: 1rem; } .key-display { max-width: 200px; } }
   </style>
 </head>
 <body>
-  <div id="login">
-    <h1>FHIR Interop Engine</h1>
-    <input type="email" id="email" placeholder="Enter your email">
-    <button onclick="sendMagicLink()" class="primary">Sign In / Sign Up</button>
-    <p style="color: gray;">No password – we'll email you a magic link.</p>
+  <div id="login" class="container">
+    <div class="header">
+      <h1>FHIR Interop Engine</h1>
+      <p class="text-small">HL7v2 → FHIR R4 Translation API</p>
+    </div>
+    <div class="card">
+      <input type="email" id="email" placeholder="Enter your email address" autocomplete="email">
+      <button onclick="sendMagicLink()" class="btn btn-primary" style="width:100%">Sign In / Sign Up</button>
+      <p class="text-small mt-2">No password – we'll email you a magic link.</p>
+      <div id="loginError" class="error hidden"></div>
+    </div>
   </div>
 
-  <div id="dashboard">
-    <h2>Dashboard</h2>
-    <div class="card">
-      <strong>API Key:</strong> <span id="apiKey"></span>
-      <button class="copy-btn" onclick="copyKey()">Copy</button>
-      <button class="danger" onclick="rotateKey()">Rotate Key</button>
+  <div id="dashboard" class="container hidden">
+    <div class="header flex">
+      <div class="avatar" id="avatar">?</div>
+      <div class="user-info">
+        <strong id="userName">Partner</strong>
+        <div class="user-email" id="userEmail"></div>
+      </div>
+      <button onclick="signOut()" class="btn btn-outline">Sign Out</button>
     </div>
+
     <div class="card">
-      <strong>Credits:</strong> <span id="credits"></span>
-      <p><strong>Buy Credits:</strong></p>
-      <button onclick="buyCredits('price_1U1xzUIUjoQtwpInIy0o6u1O')" class="primary">Pay‑as‑you‑go: $30 / 100 credits</button>
-      <button onclick="buyCredits('price_1U1xzUIUjoQtwpInNFq6TRCU')" class="primary">Volume Pack: $2,000 / 10,000 credits</button>
-      <button onclick="buyCredits('price_1U1xzUIUjoQtwpInL8G3EBZX')" class="primary">Enterprise: $9,000 / 75,000 credits</button>
+      <div class="flex">
+        <strong>API Key</strong>
+        <span class="spacer"></span>
+        <button id="revealBtn" class="btn btn-outline" onclick="toggleKey()">Show</button>
+      </div>
+      <div class="key-row">
+        <span id="apiKeyDisplay" class="key-display">••••••••••••••••••••••••••••••••</span>
+        <button class="btn btn-outline" onclick="copyKey()" title="Copy to clipboard">📋</button>
+      </div>
+      <button onclick="rotateKey()" class="btn btn-danger mt-2">Rotate Key</button>
     </div>
+
+    <div class="card">
+      <strong>Credits Balance</strong>
+      <div style="font-size: 2rem; font-weight: 700;" id="credits">0</div>
+      <div class="mt-2">
+        <strong>Buy Credits:</strong>
+        <div class="mt-2">
+          <button onclick="buyCredits('price_1U1xzUIUjoQtwpInIy0o6u1O')" class="btn btn-primary tier-btn">Pay‑as‑you‑go $30</button>
+          <button onclick="buyCredits('price_1U1xzUIUjoQtwpInNFq6TRCU')" class="btn btn-primary tier-btn">Volume Pack $2,000</button>
+          <button onclick="buyCredits('price_1U1xzUIUjoQtwpInL8G3EBZX')" class="btn btn-primary tier-btn">Enterprise $9,000</button>
+        </div>
+        <div id="buyError" class="error hidden"></div>
+      </div>
+    </div>
+
     <div class="card">
       <strong>Usage (last 7 days)</strong>
-      <canvas id="usageChart"></canvas>
+      <div class="usage-chart"><canvas id="usageChart"></canvas></div>
+      <div id="usageLoading" class="loading hidden"></div>
     </div>
+
     <div class="card">
       <strong>Invoice History</strong>
-      <ul id="invoiceList"></ul>
+      <ul id="invoiceList"><li class="text-small">No invoices yet</li></ul>
     </div>
-    <button onclick="supabaseClient.auth.signOut()">Sign Out</button>
   </div>
 
   <script>
@@ -64,72 +122,36 @@
     }
 
     let currentApiKey = ''
+    let apiKeyRevealed = false
 
+    // ----- Auth -----
     async function sendMagicLink() {
       const email = document.getElementById('email').value
       const { error } = await supabaseClient.auth.signInWithOtp({ email })
-      if (error) alert(error.message)
-      else alert('Check your email for the magic link!')
-    }
-
-    async function loadDashboard() {
-      try {
-        const { data: { session } } = await supabaseClient.auth.getSession()
-        if (!session) {
-          document.getElementById('login').style.display = 'block'
-          document.getElementById('dashboard').style.display = 'none'
-          return
-        }
-        document.getElementById('login').style.display = 'none'
-        document.getElementById('dashboard').style.display = 'block'
-        const token = session.access_token
-
-        const meRes = await fetch(`${API_BASE}/portal/me`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        const meData = await meRes.json()
-        currentApiKey = meData.api_key
-        document.getElementById('apiKey').innerText = currentApiKey
-        document.getElementById('credits').innerText = meData.credits_remaining
-
-        const usageRes = await fetch(`${API_BASE}/portal/usage`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        const usageData = await usageRes.json()
-        const labels = Object.keys(usageData.daily_usage)
-        const values = Object.values(usageData.daily_usage)
-        new Chart(document.getElementById('usageChart'), {
-          type: 'bar',
-          data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#007bff' }] },
-          options: { scales: { y: { beginAtZero: true } } }
-        })
-
-        const invRes = await fetch(`${API_BASE}/portal/invoices`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        const invData = await invRes.json()
-        const list = document.getElementById('invoiceList')
-        list.innerHTML = ''
-        invData.invoices.forEach(inv => {
-          const li = document.createElement('li')
-          li.textContent = `$${(inv.amount_total/100).toFixed(2)} – ${inv.credits_purchased} credits – ${new Date(inv.created_at).toLocaleDateString()}`
-          list.appendChild(li)
-        })
-      } catch (e) {
-        console.error('Dashboard error:', e)
+      if (error) {
+        document.getElementById('loginError').textContent = error.message
+        document.getElementById('loginError').classList.remove('hidden')
+      } else {
+        alert('Check your email for the magic link!')
       }
     }
 
-    async function rotateKey() {
-      const token = (await supabaseClient.auth.getSession()).data.session?.access_token
-      const res = await fetch(`${API_BASE}/portal/rotate-key`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      const data = await res.json()
-      document.getElementById('apiKey').innerText = data.new_api_key
-      currentApiKey = data.new_api_key
-      alert('API key rotated! Old key is now deactivated.')
+    async function signOut() {
+      await supabaseClient.auth.signOut()
+      location.reload()
+    }
+
+    // ----- UI Helpers -----
+    function toggleKey() {
+      apiKeyRevealed = !apiKeyRevealed
+      const el = document.getElementById('apiKeyDisplay')
+      if (apiKeyRevealed) {
+        el.textContent = currentApiKey
+        document.getElementById('revealBtn').textContent = 'Hide'
+      } else {
+        el.textContent = '••••••••••••••••••••••••••••••••'
+        document.getElementById('revealBtn').textContent = 'Show'
+      }
     }
 
     function copyKey() {
@@ -137,50 +159,144 @@
       alert('API key copied!')
     }
 
+    function showBuyError(msg) {
+      const err = document.getElementById('buyError')
+      err.textContent = msg
+      err.classList.remove('hidden')
+      setTimeout(() => err.classList.add('hidden'), 5000)
+    }
+
+    // ----- Dashboard Load -----
+    async function loadDashboard() {
+      const { data: { session } } = await supabaseClient.auth.getSession()
+      if (!session) {
+        document.getElementById('login').classList.remove('hidden')
+        document.getElementById('dashboard').classList.add('hidden')
+        return
+      }
+      document.getElementById('login').classList.add('hidden')
+      document.getElementById('dashboard').classList.remove('hidden')
+      const token = session.access_token
+
+      // User info
+      const user = session.user
+      document.getElementById('userEmail').textContent = user.email
+      const name = user.email.split('@')[0]
+      document.getElementById('userName').textContent = name.charAt(0).toUpperCase() + name.slice(1)
+      const avatar = document.getElementById('avatar')
+      avatar.textContent = name.charAt(0).toUpperCase()
+      avatar.style.background = '#dbeafe'
+      avatar.style.color = '#1e40af'
+
+      // API key & credits
+      try {
+        const meRes = await fetch(`${API_BASE}/portal/me`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const meData = await meRes.json()
+        currentApiKey = meData.api_key
+        document.getElementById('credits').textContent = meData.credits_remaining
+        if (!apiKeyRevealed) {
+          document.getElementById('apiKeyDisplay').textContent = '••••••••••••••••••••••••••••••••'
+        } else {
+          document.getElementById('apiKeyDisplay').textContent = currentApiKey
+        }
+      } catch (e) {
+        console.error('Failed to load profile:', e)
+      }
+
+      // Usage chart
+      try {
+        const usageRes = await fetch(`${API_BASE}/portal/usage`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const usageData = await usageRes.json()
+        const labels = Object.keys(usageData.daily_usage)
+        const values = Object.values(usageData.daily_usage)
+        const ctx = document.getElementById('usageChart').getContext('2d')
+        // Destroy previous chart if exists
+        if (window.chart) window.chart.destroy()
+        window.chart = new Chart(ctx, {
+          type: 'bar',
+          data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#2563eb' }] },
+          options: { scales: { y: { beginAtZero: true } } }
+        })
+      } catch (e) {
+        console.error('Usage fetch error:', e)
+      }
+
+      // Invoices
+      try {
+        const invRes = await fetch(`${API_BASE}/portal/invoices`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const invData = await invRes.json()
+        const list = document.getElementById('invoiceList')
+        list.innerHTML = ''
+        if (invData.invoices.length === 0) {
+          list.innerHTML = '<li class="text-small">No invoices yet</li>'
+        } else {
+          invData.invoices.forEach(inv => {
+            const li = document.createElement('li')
+            li.innerHTML = `<strong>$${(inv.amount_total/100).toFixed(2)}</strong> – ${inv.credits_purchased} credits – <span class="text-small">${new Date(inv.created_at).toLocaleDateString()}</span>`
+            list.appendChild(li)
+          })
+        }
+      } catch (e) {
+        console.error('Invoice fetch error:', e)
+      }
+    }
+
+    // ----- Key Management -----
+    async function rotateKey() {
+      const token = (await supabaseClient.auth.getSession()).data.session?.access_token
+      const res = await fetch(`${API_BASE}/portal/rotate-key`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await res.json()
+      currentApiKey = data.new_api_key
+      apiKeyRevealed = true
+      document.getElementById('apiKeyDisplay').textContent = currentApiKey
+      document.getElementById('revealBtn').textContent = 'Hide'
+      alert('API key rotated! Old key deactivated.')
+    }
+
+    // ----- Stripe Buy -----
     async function buyCredits(priceId) {
       if (!stripe) {
-        alert('Payment system temporarily unavailable. Please try again later.')
+        showBuyError('Payment system unavailable. Please try later.')
         return
       }
       const token = (await supabaseClient.auth.getSession()).data.session?.access_token
-      const res = await fetch(`${API_BASE}/portal/create-checkout-session`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ price_id: priceId })
-      })
-      const data = await res.json()
-      if (data.url) window.location.href = data.url
-      else alert('Could not start checkout')
+      try {
+        const res = await fetch(`${API_BASE}/portal/create-checkout-session`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ price_id: priceId })
+        })
+        const data = await res.json()
+        if (data.url) {
+          window.location.href = data.url
+        } else {
+          showBuyError(data.detail || 'Could not start checkout')
+        }
+      } catch (e) {
+        showBuyError('Network error. Please try again.')
+      }
     }
 
-    // ---------- FOOLPROOF INIT ----------
-    async function init() {
-      // Check if there's a token in the URL hash
-      if (window.location.hash.includes('access_token')) {
-        const hash = window.location.hash.substring(1)
-        const params = new URLSearchParams(hash)
-        const token = params.get('access_token')
-        if (token) {
-          // Set the session explicitly
-          const { error } = await supabaseClient.auth.setSession({ access_token: token, refresh_token: '' })
-          if (error) {
-            console.error('Auto-login failed:', error.message)
-            // Fall through to loadDashboard, which will show login
-          }
-          // Clean the URL to avoid reusing the token
-          window.history.replaceState({}, document.title, window.location.pathname)
+    // Init
+    window.onload = () => {
+      supabaseClient.auth.onAuthStateChange((event, session) => {
+        if (session) loadDashboard()
+        else {
+          document.getElementById('login').classList.remove('hidden')
+          document.getElementById('dashboard').classList.add('hidden')
         }
-      }
-      // Now check session and render
+      })
       loadDashboard()
     }
-
-    // Start on page load
-    window.onload = init
-
-    supabaseClient.auth.onAuthStateChange((event, session) => {
-      if (session) loadDashboard()
-    })
   </script>
 </body>
 </html>
