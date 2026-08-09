@@ -159,10 +159,29 @@ async def translate(request: Request):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
     idem_key = request.headers.get("X-Idempotency-Key")
+    idem_inserted = False
     if idem_key:
-        cached = check_idempotency(api_key, idem_key)
-        if cached:
-            return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
+        # Try to insert placeholder; only the first request succeeds
+        try:
+            insert_res = supabase.table("idempotency_store").insert({
+                "api_key": api_key,
+                "idempotency_key": idem_key,
+                "response": None
+            }).execute()
+            if insert_res.data:
+                idem_inserted = True
+            else:
+                # Insert returned no data – likely conflict (replay)
+                cached = check_idempotency(api_key, idem_key)
+                if cached:
+                    return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
+                # If still no cached (should not happen), abort
+                raise HTTPException(status_code=409, detail="Idempotency conflict, retry")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Idempotency insert error: {e}")
+            raise HTTPException(status_code=503, detail="Idempotency service error")
 
     if not api_key_exists(api_key):
         raise HTTPException(status_code=401, detail="Invalid API key")
@@ -198,8 +217,11 @@ async def translate(request: Request):
             "success": True
         }).execute()
 
-        if idem_key:
-            store_idempotency(api_key, idem_key, fhir_output)
+        if idem_key and idem_inserted:
+            try:
+                supabase.table("idempotency_store").update({"response": fhir_output}).eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
+            except Exception as e:
+                logger.error(f"Idempotency update error: {e}")
 
         return fhir_output
 
