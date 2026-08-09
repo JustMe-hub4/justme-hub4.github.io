@@ -2,7 +2,7 @@ import os
 import logging
 import uuid
 import asyncio
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, date, timezone, timedelta
 from typing import Optional, Dict
 from collections import defaultdict
 
