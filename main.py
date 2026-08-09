@@ -61,8 +61,6 @@ rate_limit_store: Dict[str, list] = {}
 RATE_LIMIT_WINDOW = 60
 RATE_LIMIT_MAX = 120
 
-# Module‑level lock store – persists across requests (single worker)
-idem_locks: Dict[str, asyncio.Lock] = {}
 
 def check_rate_limit(api_key: str) -> bool:
     now = datetime.now(timezone.utc)
@@ -163,66 +161,77 @@ async def translate(request: Request):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
     idem_key = request.headers.get("X-Idempotency-Key")
-    if idem_key:
-        # Create or get the lock for this idempotency key
-        if idem_key not in idem_locks:
-            idem_locks[idem_key] = asyncio.Lock()
-        lock = idem_locks[idem_key]
 
-        async with lock:
-            # Now only one request with this idempotency key can be here
+    # Acquire advisory lock if idempotency key present
+    if idem_key:
+        try:
+            supabase.rpc("acquire_idem_lock", {"idem_key": idem_key, "api_key": api_key}).execute()
+        except Exception as e:
+            logger.error(f"Failed to acquire advisory lock: {e}")
+            raise HTTPException(status_code=503, detail="Idempotency lock error")
+
+    try:
+        # Now check idempotency after lock
+        if idem_key:
             cached = check_idempotency(api_key, idem_key)
             if cached:
                 return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
 
-    if not api_key_exists(api_key):
-        raise HTTPException(status_code=401, detail="Invalid API key")
-
-    try:
-        deduct_resp = supabase.rpc("deduct_healthcare_credit", {"target_key": api_key}).execute()
-        if not deduct_resp.data:
-            raise HTTPException(status_code=402, detail="Insufficient credits or key invalid")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Deduction failed: {e}")
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable (credit check)")
-
-    try:
-        body = await request.body()
-        if len(body) > 1_048_576:
-            supabase.rpc("refund_healthcare_credit", {"target_key": api_key}).execute()
-            raise HTTPException(status_code=413, detail="Payload too large (max 1 MB)")
+        if not api_key_exists(api_key):
+            raise HTTPException(status_code=401, detail="Invalid API key")
 
         try:
-            hl7_text = body.decode("utf-8")
-        except UnicodeDecodeError:
-            hl7_text = body.decode("latin-1")
-            logger.warning(f"Non-UTF-8 payload from key {api_key[:4]}...")
+            deduct_resp = supabase.rpc("deduct_healthcare_credit", {"target_key": api_key}).execute()
+            if not deduct_resp.data:
+                raise HTTPException(status_code=402, detail="Insufficient credits or key invalid")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Deduction failed: {e}")
+            raise HTTPException(status_code=503, detail="Service temporarily unavailable (credit check)")
 
-        fhir_output = transform_hl7_to_fhir(hl7_text)
+        try:
+            body = await request.body()
+            if len(body) > 1_048_576:
+                supabase.rpc("refund_healthcare_credit", {"target_key": api_key}).execute()
+                raise HTTPException(status_code=413, detail="Payload too large (max 1 MB)")
 
-        supabase.table("translation_logs").insert({
-            "api_key": api_key,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "msg_type": hl7_text[:3],
-            "success": True
-        }).execute()
+            try:
+                hl7_text = body.decode("utf-8")
+            except UnicodeDecodeError:
+                hl7_text = body.decode("latin-1")
+                logger.warning(f"Non-UTF-8 payload from key {api_key[:4]}...")
 
+            fhir_output = transform_hl7_to_fhir(hl7_text)
+
+            supabase.table("translation_logs").insert({
+                "api_key": api_key,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "msg_type": hl7_text[:3],
+                "success": True
+            }).execute()
+
+            if idem_key:
+                store_idempotency(api_key, idem_key, fhir_output)
+
+            return fhir_output
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Translation error: {e}")
+            try:
+                supabase.rpc("refund_healthcare_credit", {"target_key": api_key}).execute()
+            except Exception as refund_error:
+                logger.critical(f"Refund failed: {refund_error}")
+            raise HTTPException(status_code=422, detail=f"HL7 transformation failed: {str(e)}")
+    finally:
+        # Release advisory lock
         if idem_key:
-            store_idempotency(api_key, idem_key, fhir_output)
-
-        return fhir_output
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Translation error: {e}")
-        try:
-            supabase.rpc("refund_healthcare_credit", {"target_key": api_key}).execute()
-        except Exception as refund_error:
-            logger.critical(f"Refund failed: {refund_error}")
-        raise HTTPException(status_code=422, detail=f"HL7 transformation failed: {str(e)}")
+            try:
+                supabase.rpc("release_idem_lock", {"idem_key": idem_key, "api_key": api_key}).execute()
+            except Exception as e:
+                logger.error(f"Failed to release advisory lock: {e}")
 
 @app.post("/admin/cleanup")
 async def cleanup_logs(request: Request):
