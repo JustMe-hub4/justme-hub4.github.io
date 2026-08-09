@@ -91,14 +91,13 @@ def check_idempotency(api_key: str, idem_key: str) -> Optional[dict]:
 
 def store_idempotency(api_key: str, idem_key: str, response_data: dict):
     try:
-        # Upsert – if the placeholder exists, update it; if not (unlikely), insert
-        supabase.table("idempotency_store").upsert({
+        supabase.rpc("update_idempotency", {
             "api_key": api_key,
-            "idempotency_key": idem_key,
-            "response": response_data,
-        }, on_conflict="api_key,idempotency_key").execute()
+            "idem_key": idem_key,
+            "resp": response_data
+        }).execute()
     except Exception as e:
-        logger.error(f"Idempotency store error: {e}")
+        logger.error(f"Idempotency update RPC error: {e}")
 
 def transform_hl7_to_fhir(hl7_message: str) -> dict:
     clean = hl7_message.replace("\n", "\r").strip()
