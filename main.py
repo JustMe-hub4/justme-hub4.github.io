@@ -24,7 +24,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("fhir-interop")
 
-app = FastAPI(title="FHIR Interop Engine", version="2.5.0")
+app = FastAPI(title="FHIR Interop Engine", version="2.6.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,11 +47,10 @@ STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "sk_test_...")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_...")
 stripe.api_key = STRIPE_SECRET_KEY
 
-# Map your actual Stripe Price IDs to credit amounts
 PRICE_CREDIT_MAP = {
-    "price_1U1xzUIUjoQtwpInIy0o6u1O": 100,    # Pay‑as‑you‑go: $30 for 100 credits
-    "price_1U1xzUIUjoQtwpInNFq6TRCU": 10000,  # Volume Pack: $2000 for 10,000 credits
-    "price_1U1xzUIUjoQtwpInL8G3EBZX": 75000,  # Enterprise: $9000 for 75,000 credits
+    "price_1U1xzUIUjoQtwpInIy0o6u1O": 100,
+    "price_1U1xzUIUjoQtwpInNFq6TRCU": 10000,
+    "price_1U1xzUIUjoQtwpInL8G3EBZX": 75000,
 }
 
 # ------------------------------
@@ -277,7 +276,6 @@ async def portal_usage(user = Depends(get_current_user)):
     if not key_resp.data:
         return {"daily_usage": {}}
     api_key = key_resp.data[0]["key"]
-    # Compute date string for 7 days ago
     seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     result = supabase.table("translation_logs") \
         .select("created_at") \
@@ -333,9 +331,9 @@ async def stripe_webhook(request: Request):
         raise HTTPException(status_code=500, detail="Webhook processing error")
 
     if event["type"] == "checkout.session.completed":
-        session = event["data"]["object"]
-        # session is a Stripe object – use attribute access, not .get()
-        metadata = session.get("metadata") or {}
+        # Convert Stripe object to plain dict to safely use .get()
+        session = dict(event["data"]["object"])
+        metadata = session.get("metadata", {})
         user_id = metadata.get("user_id")
         credits_str = metadata.get("credits", "0")
         logger.info(f"Webhook received: user_id={user_id}, credits={credits_str}")
@@ -352,7 +350,7 @@ async def stripe_webhook(request: Request):
             logger.info(f"RPC add_credits succeeded for {user_id}: +{credits_to_add}")
         except Exception as e:
             logger.error(f"RPC add_credits failed: {e}")
-            # Fallback: direct update
+            # Fallback direct update
             supabase.table("api_keys").update({
                 "credits_remaining": supabase.raw(f"credits_remaining + {credits_to_add}")
             }).eq("user_id", user_id).eq("active", True).execute()
