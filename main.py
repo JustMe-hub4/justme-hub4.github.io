@@ -164,29 +164,36 @@ async def translate(request: Request):
 
     idem_key = request.headers.get("X-Idempotency-Key")
 
-    # ---------- IDEMPOTENCY LOCK (per idempotency key) ----------
+    # ---------- Database‑backed idempotency lock ----------
     if idem_key:
-        # Get or create a lock for this specific idempotency key
-        if idem_key not in idem_locks:
-            idem_locks[idem_key] = asyncio.Lock()
-        lock = idem_locks[idem_key]
-
-        # Acquire the lock – only one request with this idempotency key can be here at a time
-        await lock.acquire()
+        # Try to insert a lock row – only one request with this key will succeed
         try:
-            # Check if the response already exists (from a previous request)
+            insert_res = supabase.table("idem_processing").insert({
+                "api_key": api_key,
+                "idempotency_key": idem_key
+            }).execute()
+            # If we got here, we acquired the lock. Proceed.
+            # We'll clean up the lock row after processing (in finally)
+        except Exception as e:
+            # Insert failed (unique violation) → another request is already processing
+            logger.info(f"Idempotency conflict for key {idem_key}, waiting for cached response")
+            # Poll for the cached response (with timeout)
+            import asyncio
+            for _ in range(10):  # ~5 seconds total
+                await asyncio.sleep(0.5)
+                cached = check_idempotency(api_key, idem_key)
+                if cached:
+                    return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
+            # Timeout – the processing request may have failed; retry the whole request
+            raise HTTPException(status_code=409, detail="Idempotency processing timeout, retry")
+
+        try:
+            # We hold the lock – check if the response was already stored (unlikely but safe)
             cached = check_idempotency(api_key, idem_key)
             if cached:
                 return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
 
-            # Now we hold the lock, so we can safely process
-            # The rest of the logic will run inside this try block and then the lock will be released
-            # We need to move the entire deduction and processing logic here
-            # To avoid code duplication, we'll define an inner function or just inline it.
-            # Let's put the processing in a separate function that we call from here and from the non-idempotent path.
-            # However, for simplicity, we'll just copy the code and adjust.
-
-            # Process request inside lock
+            # Process request (deduction + translation) inside the lock
             if not api_key_exists(api_key):
                 raise HTTPException(status_code=401, detail="Invalid API key")
 
@@ -235,7 +242,11 @@ async def translate(request: Request):
                     logger.critical(f"Refund failed: {refund_error}")
                 raise HTTPException(status_code=422, detail=f"HL7 transformation failed: {str(e)}")
         finally:
-            lock.release()
+            # Clean up the lock row
+            try:
+                supabase.table("idem_processing").delete().eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
+            except Exception as e:
+                logger.error(f"Failed to delete idem_processing lock: {e}")
     # ---------- END IDEMPOTENCY LOCK ----------
 
     # Normal flow without idempotency key
