@@ -22,6 +22,24 @@
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
       });
     }
+
+    async function exploreTranslate() {
+      const hl7 = document.getElementById('explorer-hl7').value;
+      const idem = document.getElementById('explorer-idem').value;
+      const headers = { 'Content-Type': 'text/plain', 'X-API-Key': currentApiKey };
+      if (idem) headers['X-Idempotency-Key'] = idem;
+      const start = Date.now();
+      const res = await fetch(`${API_BASE}/v1/translate`, { method: 'POST', headers, body: hl7 });
+      const latency = Date.now() - start;
+      const body = await res.text();
+      let pretty = ''; try { pretty = JSON.stringify(JSON.parse(body), null, 2); } catch { pretty = body; }
+      document.getElementById('explorer-response').innerHTML = `
+        <div class="card">
+          <span style="color:${res.ok ? '#22C55E' : '#EF4444'}; font-weight:600;">${res.status} ${res.statusText}</span>
+          <span style="color:#94A3B8; margin-left:8px;">${latency}ms</span>
+          <pre style="background:#162438; padding:12px; margin-top:8px; border-radius:6px; overflow-x:auto; color:white;">${pretty.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>
+        </div>`;
+    }
 </script>
   <script src="https://js.stripe.com/v3/">
     let dailyUsage = {};
@@ -40,6 +58,24 @@
         data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#16C7D9', borderRadius: 4 }] },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
       });
+    }
+
+    async function exploreTranslate() {
+      const hl7 = document.getElementById('explorer-hl7').value;
+      const idem = document.getElementById('explorer-idem').value;
+      const headers = { 'Content-Type': 'text/plain', 'X-API-Key': currentApiKey };
+      if (idem) headers['X-Idempotency-Key'] = idem;
+      const start = Date.now();
+      const res = await fetch(`${API_BASE}/v1/translate`, { method: 'POST', headers, body: hl7 });
+      const latency = Date.now() - start;
+      const body = await res.text();
+      let pretty = ''; try { pretty = JSON.stringify(JSON.parse(body), null, 2); } catch { pretty = body; }
+      document.getElementById('explorer-response').innerHTML = `
+        <div class="card">
+          <span style="color:${res.ok ? '#22C55E' : '#EF4444'}; font-weight:600;">${res.status} ${res.statusText}</span>
+          <span style="color:#94A3B8; margin-left:8px;">${latency}ms</span>
+          <pre style="background:#162438; padding:12px; margin-top:8px; border-radius:6px; overflow-x:auto; color:white;">${pretty.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>
+        </div>`;
     }
 </script>
   <style>
@@ -80,6 +116,24 @@
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
       });
     }
+
+    async function exploreTranslate() {
+      const hl7 = document.getElementById('explorer-hl7').value;
+      const idem = document.getElementById('explorer-idem').value;
+      const headers = { 'Content-Type': 'text/plain', 'X-API-Key': currentApiKey };
+      if (idem) headers['X-Idempotency-Key'] = idem;
+      const start = Date.now();
+      const res = await fetch(`${API_BASE}/v1/translate`, { method: 'POST', headers, body: hl7 });
+      const latency = Date.now() - start;
+      const body = await res.text();
+      let pretty = ''; try { pretty = JSON.stringify(JSON.parse(body), null, 2); } catch { pretty = body; }
+      document.getElementById('explorer-response').innerHTML = `
+        <div class="card">
+          <span style="color:${res.ok ? '#22C55E' : '#EF4444'}; font-weight:600;">${res.status} ${res.statusText}</span>
+          <span style="color:#94A3B8; margin-left:8px;">${latency}ms</span>
+          <pre style="background:#162438; padding:12px; margin-top:8px; border-radius:6px; overflow-x:auto; color:white;">${pretty.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>
+        </div>`;
+    }
 </script>
 </head>
 <body>
@@ -95,10 +149,14 @@
 
   <div id="dashboard" class="hidden">
     <div class="sidebar">
-      <h2>FHIR</h2>
-      <a href="#" class="active" onclick="switchTab('dashboard')">Dashboard</a>
-      <a href="#" onclick="switchTab('billing')">Billing</a>
-      <a href="#" onclick="signOut()">Sign Out</a>
+      <h2>◈ FHIR</h2>
+      <a href="#" class="active" onclick="switchTab('dashboard')">📊 Dashboard</a>
+      <a href="#" onclick="switchTab('usage')">📈 Usage</a>
+      <a href="#" onclick="switchTab('billing')">💳 Billing</a>
+      <a href="#" onclick="switchTab('docs')">📘 Docs</a>
+      <a href="#" onclick="switchTab('explorer')">🧪 Explorer</a>
+      <a href="#" onclick="switchTab('settings')">⚙ Settings</a>
+      <a href="#" onclick="signOut()" style="margin-top:24px; color:#EF4444;">Sign Out</a>
     </div>
     <div class="main">
       <div id="tab-dashboard" class="tab-content">
@@ -138,7 +196,57 @@
         <div class="card">
           <h3>Volume - 75,000 credits - $9,000</h3>
           <button class="btn btn-primary" onclick="buyCredits('price_1U1xzUIUjoQtwpInL8G3EBZX')">Buy</button>
+        
+      <div id="tab-usage" class="tab-content hidden">
+        <h2>Usage</h2>
+        <div class="card">
+          <strong>Translation Volume</strong>
+          <canvas id="usage-chart-2" style="max-height:200px; margin-top:10px;"></canvas>
         </div>
+      </div>
+      <div id="tab-docs" class="tab-content hidden">
+        <h2>Quick Start</h2>
+        <div class="card">
+          <p>1. Copy your API key</p>
+          <div class="key-display" id="doc-api-key">••••••••••••••••••••••••</div>
+          <button class="btn btn-secondary" onclick="copyKey()" style="margin-top:8px;">Copy</button>
+          <br/><br/>
+          <p>2. Send a request</p>
+          <pre style="background:#162438; padding:12px; border-radius:6px; color:#94A3B8; overflow-x:auto;">
+curl -X POST https://quack-xzno.onrender.com/v1/translate \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: text/plain" \
+  --data-binary @message.hl7
+          </pre>
+          <p style="color:#94A3B8; font-size:13px;">Include an optional X-Idempotency-Key for safe retries.</p>
+        </div>
+      </div>
+      <div id="tab-explorer" class="tab-content hidden">
+        <h2>API Explorer</h2>
+        <div class="card">
+          <textarea id="explorer-hl7" style="width:100%; height:120px; background:#162438; border:1px solid #1E334A; border-radius:6px; color:white; padding:10px; font-family:monospace;">MSH|^~\&|LAB|HOSPITAL|APP|20260809120000||ADT^A01|MSG001|P|2.5
+PID|1||123456||DOE^JOHN</textarea>
+          <input id="explorer-idem" style="width:100%; padding:10px; background:#162438; border:1px solid #1E334A; border-radius:6px; color:white; margin-top:8px;" placeholder="Idempotency Key (optional)">
+          <button class="btn btn-primary" onclick="exploreTranslate()" style="margin-top:12px;">▶ Translate</button>
+          <div id="explorer-response" style="margin-top:16px;"></div>
+        </div>
+      </div>
+      <div id="tab-settings" class="tab-content hidden">
+        <h2>Settings</h2>
+        <div class="card">
+          <p>Email: <span id="settings-email"></span></p>
+          <p>Member since: <span id="settings-joined"></span></p>
+        </div>
+        <div class="card">
+          <strong>API Key</strong>
+          <div class="key-display" id="settings-api-key">••••••••••••••••••••••••</div>
+          <div class="flex-row">
+            <button class="btn btn-secondary" onclick="toggleKey()">Show</button>
+            <button class="btn btn-secondary" onclick="copyKey()">Copy</button>
+            <button class="btn btn-danger" onclick="rotateKey()">Rotate</button>
+          </div>
+        </div>
+      </div>
       </div>
     </div>
   </div>
@@ -165,9 +273,15 @@
     function copyKey() { navigator.clipboard.writeText(currentApiKey); alert('API key copied!'); }
     function switchTab(tab) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-      document.getElementById('tab-'+tab).classList.remove('hidden');
+      const target = document.getElementById('tab-'+tab);
+      if (target) target.classList.remove('hidden');
       document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
-      document.querySelector(`.sidebar a[onclick="switchTab('${tab}')"]`).classList.add('active');
+      const link = document.querySelector(`.sidebar a[onclick="switchTab('${tab}')"]`);
+      if (link) link.classList.add('active');
+      // Load data for specific tabs
+      if (tab === 'dashboard' || tab === 'settings') fetchProfile();
+      if (tab === 'dashboard' || tab === 'usage') fetchUsage();
+      if (tab === 'dashboard' || tab === 'billing') fetchInvoices();
     }
     function signOut() { supabaseClient.auth.signOut(); }
 
@@ -206,6 +320,8 @@
         session = authSession;
         document.getElementById('login-container').classList.add('hidden');
         document.getElementById('dashboard').classList.remove('hidden');
+        document.getElementById('settings-email').textContent = authSession.user.email;
+        document.getElementById('settings-joined').textContent = new Date(authSession.user.created_at).toLocaleDateString();
         fetchProfile(); fetchInvoices(); fetchUsage(); fetchUsage();
       } else {
         document.getElementById('login-container').classList.remove('hidden');
@@ -219,6 +335,8 @@
         session = data.session;
         document.getElementById('login-container').classList.add('hidden');
         document.getElementById('dashboard').classList.remove('hidden');
+        document.getElementById('settings-email').textContent = authSession.user.email;
+        document.getElementById('settings-joined').textContent = new Date(authSession.user.created_at).toLocaleDateString();
         fetchProfile(); fetchInvoices(); fetchUsage(); fetchUsage();
       }
     })();
@@ -239,6 +357,24 @@
         data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#16C7D9', borderRadius: 4 }] },
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
       });
+    }
+
+    async function exploreTranslate() {
+      const hl7 = document.getElementById('explorer-hl7').value;
+      const idem = document.getElementById('explorer-idem').value;
+      const headers = { 'Content-Type': 'text/plain', 'X-API-Key': currentApiKey };
+      if (idem) headers['X-Idempotency-Key'] = idem;
+      const start = Date.now();
+      const res = await fetch(`${API_BASE}/v1/translate`, { method: 'POST', headers, body: hl7 });
+      const latency = Date.now() - start;
+      const body = await res.text();
+      let pretty = ''; try { pretty = JSON.stringify(JSON.parse(body), null, 2); } catch { pretty = body; }
+      document.getElementById('explorer-response').innerHTML = `
+        <div class="card">
+          <span style="color:${res.ok ? '#22C55E' : '#EF4444'}; font-weight:600;">${res.status} ${res.statusText}</span>
+          <span style="color:#94A3B8; margin-left:8px;">${latency}ms</span>
+          <pre style="background:#162438; padding:12px; margin-top:8px; border-radius:6px; overflow-x:auto; color:white;">${pretty.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>
+        </div>`;
     }
 </script>
 </body>
