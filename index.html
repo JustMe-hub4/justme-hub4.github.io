@@ -192,16 +192,26 @@ PID|1||123456||DOE^JOHN</textarea><input id="explorer-idem" style="width:100%; p
     function closeRotateModal() { document.getElementById('rotate-modal').classList.add('hidden'); }
     async function rotateKey() {
       closeRotateModal();
-      const res = await fetch(`${API_BASE}/portal/rotate-key`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } });
-      if (res.ok) {
-        const d = await res.json();
-        currentApiKey = d.new_api_key;
-        credits = d.credits_remaining;   // <-- transfer credits
-        apiKeyRevealed = true;
-        updateApiKeyDisplay();
-        updateCreditDisplay();
-        showToast('Key rotated! Credits transferred.', 'success');
-      } else showToast('Rotation failed.', 'error');
+      try {
+        const res = await fetch(`${API_BASE}/portal/rotate-key`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } });
+        if (res.ok) {
+          const d = await res.json();
+          console.log('Rotate response:', d);
+          currentApiKey = d.new_api_key;
+          credits = d.credits_remaining;
+          apiKeyRevealed = true;
+          updateApiKeyDisplay();
+          updateCreditDisplay();
+          showToast('Key rotated! Credits transferred.', 'success');
+        } else {
+          const err = await res.text();
+          console.error('Rotate error:', res.status, err);
+          showToast('Rotation failed: ' + (res.status === 402 ? 'Insufficient credits' : 'Server error'), 'error');
+        }
+      } catch (e) {
+        console.error('Rotate network error:', e);
+        showToast('Network error during rotation.', 'error');
+      }
     }
 
     // ---------- Usage & Chart ----------
