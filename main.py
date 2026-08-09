@@ -25,7 +25,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("fhir-interop")
 
-app = FastAPI(title="FHIR Interop Engine", version="2.9.0")
+app = FastAPI(title="FHIR Interop Engine", version="3.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -61,9 +61,6 @@ rate_limit_store: Dict[str, list] = {}
 RATE_LIMIT_WINDOW = 60
 RATE_LIMIT_MAX = 120
 
-# Module‑level lock store – persists for the lifetime of the single worker process
-idem_locks: Dict[str, asyncio.Lock] = {}
-
 def check_rate_limit(api_key: str) -> bool:
     now = datetime.now(timezone.utc)
     if api_key not in rate_limit_store:
@@ -86,7 +83,7 @@ def check_idempotency(api_key: str, idem_key: str) -> Optional[dict]:
     try:
         resp = supabase.table("idempotency_store").select("response") \
             .eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
-        if resp.data and resp.data[0]["response"]:
+        if resp.data and resp.data[0].get("response") is not None:
             return resp.data[0]["response"]
     except Exception as e:
         logger.error(f"Idempotency check error: {e}")
@@ -94,13 +91,11 @@ def check_idempotency(api_key: str, idem_key: str) -> Optional[dict]:
 
 def store_idempotency(api_key: str, idem_key: str, response_data: dict):
     try:
-        supabase.table("idempotency_store").upsert({
-            "api_key": api_key,
-            "idempotency_key": idem_key,
-            "response": response_data,
-        }, on_conflict="api_key,idempotency_key").execute()
+        supabase.table("idempotency_store").update({
+            "response": response_data
+        }).eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
     except Exception as e:
-        logger.error(f"Idempotency store error: {e}")
+        logger.error(f"Idempotency update error: {e}")
 
 def transform_hl7_to_fhir(hl7_message: str) -> dict:
     clean = hl7_message.replace("\n", "\r").strip()
@@ -164,36 +159,29 @@ async def translate(request: Request):
 
     idem_key = request.headers.get("X-Idempotency-Key")
 
-    # ---------- Database‑backed idempotency lock ----------
     if idem_key:
-        # Try to insert a lock row – only one request with this key will succeed
+        # ---------- Atomic idempotency via placeholder insert ----------
         try:
-            insert_res = supabase.table("idem_processing").insert({
+            # Try to insert a placeholder row. Only one request will succeed.
+            supabase.table("idempotency_store").insert({
                 "api_key": api_key,
-                "idempotency_key": idem_key
+                "idempotency_key": idem_key,
+                "response": None
             }).execute()
-            # If we got here, we acquired the lock. Proceed.
-            # We'll clean up the lock row after processing (in finally)
-        except Exception as e:
-            # Insert failed (unique violation) → another request is already processing
-            logger.info(f"Idempotency conflict for key {idem_key}, waiting for cached response")
-            # Poll for the cached response (with timeout)
-            import asyncio
-            for _ in range(10):  # ~5 seconds total
+            # We acquired the lock – proceed to process
+        except Exception:
+            # Insert failed (unique violation) → another request is processing
+            # Wait and poll for the real response (max 5 seconds)
+            for _ in range(10):
                 await asyncio.sleep(0.5)
                 cached = check_idempotency(api_key, idem_key)
                 if cached:
                     return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
-            # Timeout – the processing request may have failed; retry the whole request
-            raise HTTPException(status_code=409, detail="Idempotency processing timeout, retry")
+            # Timeout – the processing request may have crashed; allow retry
+            raise HTTPException(status_code=409, detail="Idempotency conflict, retry after a moment")
 
+        # We hold the lock; process the request and then fill the placeholder
         try:
-            # We hold the lock – check if the response was already stored (unlikely but safe)
-            cached = check_idempotency(api_key, idem_key)
-            if cached:
-                return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
-
-            # Process request (deduction + translation) inside the lock
             if not api_key_exists(api_key):
                 raise HTTPException(status_code=401, detail="Invalid API key")
 
@@ -228,6 +216,7 @@ async def translate(request: Request):
                     "success": True
                 }).execute()
 
+                # Fill the placeholder with the real response
                 store_idempotency(api_key, idem_key, fhir_output)
 
                 return fhir_output
@@ -241,13 +230,11 @@ async def translate(request: Request):
                 except Exception as refund_error:
                     logger.critical(f"Refund failed: {refund_error}")
                 raise HTTPException(status_code=422, detail=f"HL7 transformation failed: {str(e)}")
-        finally:
-            # Clean up the lock row
-            try:
-                supabase.table("idem_processing").delete().eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
-            except Exception as e:
-                logger.error(f"Failed to delete idem_processing lock: {e}")
-    # ---------- END IDEMPOTENCY LOCK ----------
+        except:
+            # If anything fails, remove the placeholder so a retry can succeed
+            supabase.table("idempotency_store").delete().eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
+            raise
+    # ---------- End idempotency block ----------
 
     # Normal flow without idempotency key
     if not api_key_exists(api_key):
