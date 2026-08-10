@@ -5,3 +5,5 @@ hl7apy
 fhir.resources
 python-dotenv
 stripe
+pydantic
+httpx
