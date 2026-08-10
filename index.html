@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FHIR Interop Engine</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>◈</text></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root { --bg:#07111F; --surface:#101D2D; --surface-elevated:#162438; --border:#1E334A; --primary:#16C7D9; --success:#22C55E; --error:#EF4444; --text:#F8FAFC; --text-muted:#94A3B8; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .card { background: var(--surface); border-radius: 12px; padding: 40px; width: 400px; text-align: center; border: 1px solid var(--border); }
+    input { width: 100%; padding: 10px; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 6px; color: var(--text); margin: 8px 0; }
+    .btn { padding: 10px 20px; border-radius: 6px; font-weight: 600; border: none; cursor: pointer; width: 100%; margin-top: 12px; }
+    .btn-primary { background: var(--primary); color: #07111F; }
+    .btn-secondary { background: var(--surface-elevated); color: var(--text); border: 1px solid var(--border); }
+    .btn-danger { background: var(--error); color: white; }
+    .hidden { display: none !important; }
+    .toggle-link { color: var(--primary); font-size: 13px; cursor: pointer; margin-top: 12px; display: block; }
+    .key-display { font-family: monospace; background: var(--surface-elevated); padding: 10px; border-radius: 6px; word-break: break-all; }
+    .flex-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+    .toast { padding: 12px 20px; border-radius: 8px; font-weight: 500; animation: slideIn 0.3s; }
+    .toast-success { background: var(--success); }
+    .toast-error { background: var(--error); }
+    .toast-info { background: var(--primary); color: #07111F; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  </style>
+</head>
+<body>
+  <div id="login-container" class="card">
+    <h1>FHIR Interop Engine</h1>
+    <p style="color:var(--text-muted)">HL7v2 → FHIR R4 Translation</p>
+    <input type="email" id="login-email" placeholder="Enter your email" autocomplete="email">
+    <input type="password" id="login-password" placeholder="Password" style="display:none;">
+    <button id="btn-login" class="btn btn-primary">Sign In / Sign Up</button>
+    <p id="login-msg" style="color:var(--text-muted); margin-top:12px;"></p>
+    <span class="toggle-link" id="toggle-auth-mode">Or use password</span>
+  </div>
+
+  <div id="dashboard-container" class="card hidden">
+    <h2>Dashboard</h2>
+    <p>API Key:</p>
+    <div class="key-display" id="api-key-display">••••••••••••••••••••••••</div>
+    <div class="flex-row">
+      <button class="btn btn-secondary" onclick="toggleKey()">Show</button>
+      <button class="btn btn-secondary" onclick="copyKey()">Copy</button>
+    </div>
+    <p style="margin-top:16px;">Credits: <strong id="credit-balance">0</strong></p>
+    <button onclick="supabaseClient.auth.signOut()" class="btn btn-danger" style="margin-top:12px;">Sign Out</button>
+  </div>
+
+  <div id="toast-container" style="position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:2000;"></div>
+
+  <script>
+    const SUPABASE_URL = 'https://lhgfolrupmsklrccirpj.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_4y3_i7S_YNCgOoEkbbVWRg_qXLBNlyf';
+    const API_BASE = 'https://quack-xzno.onrender.com';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let session = null, currentApiKey = '', apiKeyRevealed = false, credits = 0;
+
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      toast.textContent = msg;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    const toggleAuthLink = document.getElementById('toggle-auth-mode');
+    const pwField = document.getElementById('login-password');
+    const loginBtn = document.getElementById('btn-login');
+    let isPasswordMode = false;
+
+    toggleAuthLink.addEventListener('click', () => {
+      isPasswordMode = !isPasswordMode;
+      pwField.style.display = isPasswordMode ? 'block' : 'none';
+      toggleAuthLink.textContent = isPasswordMode ? 'Or use magic link' : 'Or use password';
+      loginBtn.textContent = isPasswordMode ? 'Sign In' : 'Sign In / Sign Up';
+      loginBtn.onclick = isPasswordMode ? passwordLogin : magicLinkLogin;
+    });
+
+    async function magicLinkLogin() {
+      const email = document.getElementById('login-email').value;
+      loginBtn.disabled = true; loginBtn.textContent = 'Sending...';
+      const { error } = await supabaseClient.auth.signInWithOtp({ email });
+      if (error) {
+        document.getElementById('login-msg').textContent = error.message;
+      } else {
+        document.getElementById('login-msg').textContent = 'Magic link sent! Check your email.';
+      }
+      loginBtn.disabled = false; loginBtn.textContent = 'Sign In / Sign Up';
+    }
+
+    async function passwordLogin() {
+      const email = document.getElementById('login-email').value;
+      const password = pwField.value;
+      loginBtn.disabled = true; loginBtn.textContent = 'Signing in...';
+      let { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) {
+        if (error.message.includes('Invalid login credentials')) {
+          loginBtn.textContent = 'Creating account...';
+          const { error: signUpError } = await supabaseClient.auth.signUp({ email, password });
+          if (signUpError) {
+            document.getElementById('login-msg').textContent = signUpError.message;
+            loginBtn.disabled = false; loginBtn.textContent = 'Sign In';
+          } else {
+            await supabaseClient.auth.signInWithPassword({ email, password });
+          }
+        } else {
+          document.getElementById('login-msg').textContent = error.message;
+          loginBtn.disabled = false; loginBtn.textContent = 'Sign In';
+        }
+      }
+    }
+
+    loginBtn.onclick = magicLinkLogin;
+
+    async function fetchProfile() {
+      const res = await fetch(`${API_BASE}/portal/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (res.ok) {
+        const d = await res.json();
+        credits = d.credits_remaining;
+        currentApiKey = d.api_key;
+        document.getElementById('credit-balance').textContent = credits;
+        if (!apiKeyRevealed) document.getElementById('api-key-display').textContent = currentApiKey.substring(0,12) + '••••••••••••••••••••••••';
+        else document.getElementById('api-key-display').textContent = currentApiKey;
+      }
+    }
+
+    function toggleKey() {
+      apiKeyRevealed = !apiKeyRevealed;
+      if (apiKeyRevealed) {
+        document.getElementById('api-key-display').textContent = currentApiKey;
+      } else {
+        document.getElementById('api-key-display').textContent = currentApiKey.substring(0,12) + '••••••••••••••••••••••••';
+      }
+    }
+
+    function copyKey() {
+      navigator.clipboard.writeText(currentApiKey);
+      showToast('API key copied!', 'success');
+    }
+
+    supabaseClient.auth.onAuthStateChange((event, authSession) => {
+      if (authSession) {
+        session = authSession;
+        document.getElementById('login-container').classList.add('hidden');
+        document.getElementById('dashboard-container').classList.remove('hidden');
+        fetchProfile();
+      } else {
+        document.getElementById('login-container').classList.remove('hidden');
+        document.getElementById('dashboard-container').classList.add('hidden');
+      }
+    });
+
+    (async () => {
+      const { data } = await supabaseClient.auth.getSession();
+      if (data.session) {
+        session = data.session;
+        document.getElementById('login-container').classList.add('hidden');
+        document.getElementById('dashboard-container').classList.remove('hidden');
+        fetchProfile();
+      }
+    })();
+  </script>
+</body>
+</html>
