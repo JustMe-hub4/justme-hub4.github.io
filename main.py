@@ -1,12 +1,10 @@
 import os
 import logging
 import uuid
-import asyncio
-from datetime import datetime, date, timezone, timedelta
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict
 from collections import defaultdict
 
-from pydantic import BaseModel
 from fastapi import FastAPI, Request, HTTPException, status, Response, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
@@ -25,18 +23,17 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("fhir-interop")
 
-app = FastAPI(title="FHIR Interop Engine", version="3.0.0")
+app = FastAPI(title="FHIR Interop Engine", version="stable")
 
+# CORS – allow all origins (safe for now)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["POST", "GET"],
-    allow_headers=["X-API-Key", "X-Idempotency-Key", "Content-Type", "X-Admin-Key", "Authorization"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# ------------------------------
-# Supabase & Stripe config
-# ------------------------------
+# Config
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -54,9 +51,7 @@ PRICE_CREDIT_MAP = {
     "price_1U1xzUIUjoQtwpInL8G3EBZX": 75000,
 }
 
-# ------------------------------
-# Rate limiter & helpers
-# ------------------------------
+# Rate limiter
 rate_limit_store: Dict[str, list] = {}
 RATE_LIMIT_WINDOW = 60
 RATE_LIMIT_MAX = 120
@@ -78,38 +73,6 @@ def api_key_exists(api_key: str) -> bool:
     except Exception as e:
         logger.error(f"Supabase error checking key: {e}")
         return False
-
-def check_idempotency(api_key: str, idem_key: str) -> Optional[dict]:
-    try:
-        resp = supabase.table("idempotency_store").select("response") \
-            .eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
-        if resp.data and resp.data[0].get("response") is not None:
-            return resp.data[0]["response"]
-    except Exception as e:
-        logger.error(f"Idempotency check error: {e}")
-    return None
-
-def store_idempotency(api_key: str, idem_key: str, response_data: dict):
-    try:
-        # Upsert – if the placeholder exists, update it; if not (unlikely), insert
-        supabase.table("idempotency_store").upsert({
-            "api_key": api_key,
-            "idempotency_key": idem_key,
-            "response": response_data,
-        }, on_conflict="api_key,idempotency_key").execute()
-    except Exception as e:
-        logger.error(f"Idempotency store error: {e}")
-
-
-def json_safe(obj):
-    """Recursively convert date/datetime objects to ISO strings."""
-    if isinstance(obj, (datetime, date)):
-        return obj.isoformat()
-    elif isinstance(obj, dict):
-        return {k: json_safe(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [json_safe(i) for i in obj]
-    return obj
 
 def transform_hl7_to_fhir(hl7_message: str) -> dict:
     clean = hl7_message.replace("\n", "\r").strip()
@@ -144,9 +107,9 @@ def transform_hl7_to_fhir(hl7_message: str) -> dict:
         BundleEntry(resource=encounter, request=BundleEntryRequest(method="POST", url="Encounter"))
     ]
     bundle = Bundle(type="batch", entry=entries, id=str(uuid.uuid4()))
-    return json_safe(bundle.dict())
+    return bundle.dict()
 
-# -------------------- Core Endpoints --------------------
+# ---------- Core Endpoints ----------
 @app.get("/health")
 async def health():
     try:
@@ -172,95 +135,16 @@ async def translate(request: Request):
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
     idem_key = request.headers.get("X-Idempotency-Key")
-
     if idem_key:
-        # Step 1: Try to acquire idempotency lock
         try:
-            acquire_res = supabase.rpc("acquire_idempotency", {
-                "p_api_key": api_key,
-                "p_idem_key": idem_key,
-                "p_response": None
-            }).execute()
-            status = acquire_res.data.get("status")
+            cached = supabase.table("idempotency_store").select("response") \
+                .eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
+            if cached.data and cached.data[0].get("response"):
+                return Response(content=cached.data[0]["response"], media_type="application/json",
+                                headers={"X-Idempotency-Replay": "true"})
         except Exception as e:
-            logger.error(f"Idempotency acquire error: {e}")
-            raise HTTPException(status_code=503, detail="Idempotency service error")
+            logger.error(f"Idempotency check error: {e}")
 
-        if status == "exists":
-            cached = acquire_res.data.get("response")
-            if cached:
-                return Response(content=cached, media_type="application/json", headers={"X-Idempotency-Replay": "true"})
-            else:
-                import asyncio
-                await asyncio.sleep(1)
-                retry_res = supabase.rpc("acquire_idempotency", {
-                    "p_api_key": api_key,
-                    "p_idem_key": idem_key,
-                    "p_response": None
-                }).execute()
-                if retry_res.data.get("status") == "exists" and retry_res.data.get("response"):
-                    return Response(content=retry_res.data["response"], media_type="application/json", headers={"X-Idempotency-Replay": "true"})
-                raise HTTPException(status_code=409, detail="Idempotency conflict, retry after a moment")
-        elif status != "acquired":
-            raise HTTPException(status_code=500, detail="Unexpected idempotency state")
-
-        # Process request
-        if not api_key_exists(api_key):
-            raise HTTPException(status_code=401, detail="Invalid API key")
-
-        try:
-            deduct_resp = supabase.rpc("deduct_healthcare_credit", {"target_key": api_key}).execute()
-            if not deduct_resp.data:
-                raise HTTPException(status_code=402, detail="Insufficient credits or key invalid")
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Deduction failed: {e}")
-            raise HTTPException(status_code=503, detail="Service temporarily unavailable (credit check)")
-
-        try:
-            body = await request.body()
-            if len(body) > 1_048_576:
-                supabase.rpc("refund_healthcare_credit", {"target_key": api_key}).execute()
-                raise HTTPException(status_code=413, detail="Payload too large (max 1 MB)")
-
-            try:
-                hl7_text = body.decode("utf-8")
-            except UnicodeDecodeError:
-                hl7_text = body.decode("latin-1")
-                logger.warning(f"Non-UTF-8 payload from key {api_key[:4]}...")
-
-            fhir_output = transform_hl7_to_fhir(hl7_text)
-
-            supabase.table("translation_logs").insert({
-                "api_key": api_key,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "msg_type": hl7_text[:3],
-                "success": True
-            }).execute()
-
-            # Store the FHIR response atomically
-            supabase.rpc("acquire_idempotency", {
-                "p_api_key": api_key,
-                "p_idem_key": idem_key,
-                "p_response": fhir_output
-            }).execute()
-
-            return fhir_output
-
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Translation error: {e}")
-            try:
-                supabase.rpc("refund_healthcare_credit", {"target_key": api_key}).execute()
-            except Exception as refund_error:
-                logger.critical(f"Refund failed: {refund_error}")
-            supabase.table("idempotency_store").delete().eq("api_key", api_key).eq("idempotency_key", idem_key).execute()
-            raise HTTPException(status_code=422, detail=f"HL7 transformation failed: {str(e)}")
-    # End idempotency block
-
-    # Normal flow without idempotency key
     if not api_key_exists(api_key):
         raise HTTPException(status_code=401, detail="Invalid API key")
 
@@ -272,7 +156,7 @@ async def translate(request: Request):
         raise
     except Exception as e:
         logger.error(f"Deduction failed: {e}")
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable (credit check)")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
 
     try:
         body = await request.body()
@@ -280,12 +164,7 @@ async def translate(request: Request):
             supabase.rpc("refund_healthcare_credit", {"target_key": api_key}).execute()
             raise HTTPException(status_code=413, detail="Payload too large (max 1 MB)")
 
-        try:
-            hl7_text = body.decode("utf-8")
-        except UnicodeDecodeError:
-            hl7_text = body.decode("latin-1")
-            logger.warning(f"Non-UTF-8 payload from key {api_key[:4]}...")
-
+        hl7_text = body.decode("utf-8")
         fhir_output = transform_hl7_to_fhir(hl7_text)
 
         supabase.table("translation_logs").insert({
@@ -295,16 +174,19 @@ async def translate(request: Request):
             "success": True
         }).execute()
 
-        return fhir_output
+        if idem_key:
+            supabase.table("idempotency_store").upsert({
+                "api_key": api_key,
+                "idempotency_key": idem_key,
+                "response": fhir_output,
+            }, on_conflict="api_key,idempotency_key").execute()
 
+        return fhir_output
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Translation error: {e}")
-        try:
-            supabase.rpc("refund_healthcare_credit", {"target_key": api_key}).execute()
-        except Exception as refund_error:
-            logger.critical(f"Refund failed: {refund_error}")
+        supabase.rpc("refund_healthcare_credit", {"target_key": api_key}).execute()
         raise HTTPException(status_code=422, detail=f"HL7 transformation failed: {str(e)}")
 
 @app.post("/admin/cleanup")
@@ -312,16 +194,11 @@ async def cleanup_logs(request: Request):
     admin_key = request.headers.get("X-Admin-Key")
     if not admin_key or admin_key != ADMIN_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
+    supabase.table("translation_logs").delete().lt("created_at", "now() - interval '7 days'").execute()
+    supabase.table("idempotency_store").delete().lt("created_at", "now() - interval '1 day'").execute()
+    return {"status": "ok", "message": "Cleanup completed"}
 
-    try:
-        supabase.table("translation_logs").delete().lt("created_at", "now() - interval '7 days'").execute()
-        supabase.table("idempotency_store").delete().lt("created_at", "now() - interval '1 day'").execute()
-        return {"status": "ok", "message": "Cleanup completed"}
-    except Exception as e:
-        logger.error(f"Cleanup failed: {e}")
-        raise HTTPException(status_code=500, detail="Cleanup failed")
-
-# -------------------- Portal Endpoints --------------------
+# ---------- Simple Portal Endpoints (no rotation, just me and credits) ----------
 security = HTTPBearer()
 
 async def get_current_user(request: Request):
@@ -335,9 +212,6 @@ async def get_current_user(request: Request):
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-class CheckoutRequest(BaseModel):
-    price_id: str
-
 @app.get("/portal/me")
 async def portal_me(user = Depends(get_current_user)):
     user_id = user.user.id
@@ -345,43 +219,12 @@ async def portal_me(user = Depends(get_current_user)):
         .eq("user_id", user_id).eq("active", True).execute()
     if not key_resp.data:
         raise HTTPException(status_code=404, detail="No active API key found")
-    active_key = key_resp.data[0]
-    return {"api_key": active_key["key"], "credits_remaining": active_key["credits_remaining"]}
+    return {"api_key": key_resp.data[0]["key"], "credits_remaining": key_resp.data[0]["credits_remaining"]}
 
-@app.post("/portal/rotate-key")
-async def rotate_key(user = Depends(get_current_user)):
-    user_id = user.user.id
-    supabase.table("api_keys").update({"active": False}).eq("user_id", user_id).eq("active", True).execute()
-    new_key = os.urandom(16).hex()
-    supabase.table("api_keys").insert({
-        "key": new_key,
-        "credits_remaining": 0,
-        "user_id": user_id,
-        "active": True
-    }).execute()
-    supabase.table("users").update({"api_key": new_key}).eq("id", user_id).execute()
-    return {"new_api_key": new_key, "credits_remaining": old_credits}
-
-@app.get("/portal/usage")
-async def portal_usage(user = Depends(get_current_user)):
-    user_id = user.user.id
-    key_resp = supabase.table("api_keys").select("key") \
-        .eq("user_id", user_id).eq("active", True).execute()
-    if not key_resp.data:
-        return {"daily_usage": {}}
-    api_key = key_resp.data[0]["key"]
-    seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-    result = supabase.table("translation_logs") \
-        .select("created_at") \
-        .eq("api_key", api_key) \
-        .gte("created_at", seven_days_ago) \
-        .order("created_at", desc=False) \
-        .execute()
-    daily = defaultdict(int)
-    for row in result.data:
-        date_str = row["created_at"][:10]
-        daily[date_str] += 1
-    return {"daily_usage": dict(sorted(daily.items()))}
+# ---------- Stripe ----------
+from pydantic import BaseModel
+class CheckoutRequest(BaseModel):
+    price_id: str
 
 @app.post("/portal/create-checkout-session")
 async def create_checkout_session(req: CheckoutRequest, user = Depends(get_current_user)):
@@ -404,63 +247,41 @@ async def create_checkout_session(req: CheckoutRequest, user = Depends(get_curre
         return {"url": session.url}
     except Exception as e:
         logger.error(f"Stripe session error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Stripe error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Could not create payment session")
 
 @app.post("/portal/stripe-webhook")
 async def stripe_webhook(request: Request):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature")
     try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, STRIPE_WEBHOOK_SECRET
-        )
-    except ValueError as e:
-        logger.error(f"Webhook payload error: {e}")
-        raise HTTPException(status_code=400, detail="Invalid payload")
-    except stripe.error.SignatureVerificationError as e:
-        logger.error(f"Webhook signature error: {e}")
-        raise HTTPException(status_code=400, detail="Invalid signature")
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
     except Exception as e:
-        logger.error(f"Webhook unexpected error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Webhook processing error")
+        logger.error(f"Webhook error: {e}")
+        raise HTTPException(status_code=400, detail="Invalid signature")
 
     if event["type"] == "checkout.session.completed":
-        session = dict(event["data"]["object"])
+        session = event.data.object.to_dict()
         metadata = session.get("metadata", {})
         user_id = metadata.get("user_id")
         credits_str = metadata.get("credits", "0")
-        logger.info(f"Webhook received: user_id={user_id}, credits={credits_str}")
-        if not user_id:
-            return {"status": "ignored"}
-        credits_to_add = int(credits_str)
-
-        try:
-            supabase.rpc("add_credits", {
-                "target_user_id": user_id,
-                "amount": credits_to_add
+        if user_id:
+            credits_to_add = int(credits_str)
+            try:
+                supabase.rpc("add_credits", {"target_user_id": user_id, "amount": credits_to_add}).execute()
+            except Exception:
+                supabase.table("api_keys").update({"credits_remaining": supabase.raw(f"credits_remaining + {credits_to_add}")}) \
+                    .eq("user_id", user_id).eq("active", True).execute()
+            supabase.table("stripe_payments").insert({
+                "user_id": user_id,
+                "stripe_checkout_session_id": session["id"],
+                "amount_total": session["amount_total"],
+                "credits_purchased": credits_to_add,
+                "status": "completed"
             }).execute()
-            logger.info(f"RPC add_credits succeeded for {user_id}: +{credits_to_add}")
-        except Exception as e:
-            logger.error(f"RPC add_credits failed: {e}")
-            supabase.table("api_keys").update({
-                "credits_remaining": supabase.raw(f"credits_remaining + {credits_to_add}")
-            }).eq("user_id", user_id).eq("active", True).execute()
-            logger.info(f"Fallback direct update for {user_id}: +{credits_to_add}")
-
-        supabase.table("stripe_payments").insert({
-            "user_id": user_id,
-            "stripe_checkout_session_id": session["id"],
-            "amount_total": session["amount_total"],
-            "credits_purchased": credits_to_add,
-            "status": "completed"
-        }).execute()
-        logger.info(f"Payment recorded for user {user_id}")
-
     return {"status": "success"}
 
 @app.get("/portal/invoices")
 async def portal_invoices(user = Depends(get_current_user)):
     user_id = user.user.id
-    resp = supabase.table("stripe_payments").select("*") \
-        .eq("user_id", user_id).order("created_at", desc=True).execute()
+    resp = supabase.table("stripe_payments").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
     return {"invoices": resp.data}
