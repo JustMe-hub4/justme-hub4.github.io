@@ -4,9 +4,126 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FHIR Interop Engine</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="https://js.stripe.com/v3/"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+    function togglePasswordLogin() {
+      const pwField = document.getElementById('login-password');
+      const btn = document.getElementById('btn-login');
+      if (pwField.style.display === 'none') {
+        pwField.style.display = 'block';
+        btn.textContent = 'Sign In';
+        btn.onclick = passwordLogin;
+      } else {
+        pwField.style.display = 'none';
+        btn.textContent = 'Send Magic Link';
+        btn.onclick = magicLinkLogin;
+      }
+    }
+
+    async function magicLinkLogin() {
+      const email = document.getElementById('login-email').value;
+      const btn = document.getElementById('btn-login'); btn.disabled = true; btn.textContent = 'Sending...';
+      const { error } = await supabaseClient.auth.signInWithOtp({ email });
+      document.getElementById('login-msg').textContent = error ? error.message : 'Magic link sent! Check your email.';
+      btn.disabled = false; btn.textContent = 'Send Magic Link';
+    }
+
+    async function passwordLogin() {
+      const email = document.getElementById('login-email').value;
+      const pw = document.getElementById('login-password').value;
+      const btn = document.getElementById('btn-login'); btn.disabled = true; btn.textContent = 'Signing in...';
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password: pw });
+      if (error) {
+        document.getElementById('login-msg').textContent = error.message;
+        btn.disabled = false; btn.textContent = 'Sign In';
+      } else {
+        // Auth state listener will handle dashboard display
+      }
+    }
+
+    // Set initial onclick to magic link
+    document.getElementById('btn-login').onclick = magicLinkLogin;
+
+</script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4">
+    function togglePasswordLogin() {
+      const pwField = document.getElementById('login-password');
+      const btn = document.getElementById('btn-login');
+      if (pwField.style.display === 'none') {
+        pwField.style.display = 'block';
+        btn.textContent = 'Sign In';
+        btn.onclick = passwordLogin;
+      } else {
+        pwField.style.display = 'none';
+        btn.textContent = 'Send Magic Link';
+        btn.onclick = magicLinkLogin;
+      }
+    }
+
+    async function magicLinkLogin() {
+      const email = document.getElementById('login-email').value;
+      const btn = document.getElementById('btn-login'); btn.disabled = true; btn.textContent = 'Sending...';
+      const { error } = await supabaseClient.auth.signInWithOtp({ email });
+      document.getElementById('login-msg').textContent = error ? error.message : 'Magic link sent! Check your email.';
+      btn.disabled = false; btn.textContent = 'Send Magic Link';
+    }
+
+    async function passwordLogin() {
+      const email = document.getElementById('login-email').value;
+      const pw = document.getElementById('login-password').value;
+      const btn = document.getElementById('btn-login'); btn.disabled = true; btn.textContent = 'Signing in...';
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password: pw });
+      if (error) {
+        document.getElementById('login-msg').textContent = error.message;
+        btn.disabled = false; btn.textContent = 'Sign In';
+      } else {
+        // Auth state listener will handle dashboard display
+      }
+    }
+
+    // Set initial onclick to magic link
+    document.getElementById('btn-login').onclick = magicLinkLogin;
+
+</script>
+  <script src="https://js.stripe.com/v3/">
+    function togglePasswordLogin() {
+      const pwField = document.getElementById('login-password');
+      const btn = document.getElementById('btn-login');
+      if (pwField.style.display === 'none') {
+        pwField.style.display = 'block';
+        btn.textContent = 'Sign In';
+        btn.onclick = passwordLogin;
+      } else {
+        pwField.style.display = 'none';
+        btn.textContent = 'Send Magic Link';
+        btn.onclick = magicLinkLogin;
+      }
+    }
+
+    async function magicLinkLogin() {
+      const email = document.getElementById('login-email').value;
+      const btn = document.getElementById('btn-login'); btn.disabled = true; btn.textContent = 'Sending...';
+      const { error } = await supabaseClient.auth.signInWithOtp({ email });
+      document.getElementById('login-msg').textContent = error ? error.message : 'Magic link sent! Check your email.';
+      btn.disabled = false; btn.textContent = 'Send Magic Link';
+    }
+
+    async function passwordLogin() {
+      const email = document.getElementById('login-email').value;
+      const pw = document.getElementById('login-password').value;
+      const btn = document.getElementById('btn-login'); btn.disabled = true; btn.textContent = 'Signing in...';
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password: pw });
+      if (error) {
+        document.getElementById('login-msg').textContent = error.message;
+        btn.disabled = false; btn.textContent = 'Sign In';
+      } else {
+        // Auth state listener will handle dashboard display
+      }
+    }
+
+    // Set initial onclick to magic link
+    document.getElementById('btn-login').onclick = magicLinkLogin;
+
+</script>
   <style>
     :root {
       --bg: #07111F; --surface: #101D2D; --surface-elevated: #162438; --border: #1E334A;
@@ -50,8 +167,10 @@
       <h1>FHIR Interop Engine</h1>
       <p style="color:var(--text-muted)">HL7v2 → FHIR R4 Translation</p>
       <input type="email" id="login-email" placeholder="Enter your email" style="width:100%; padding:10px; background:var(--surface-elevated); border:1px solid var(--border); border-radius:6px; color:var(--text); margin:8px 0;">
+      <input type="password" id="login-password" placeholder="Password (optional)" style="width:100%; padding:10px; background:var(--surface-elevated); border:1px solid var(--border); border-radius:6px; color:var(--text); margin:8px 0; display:none;">
       <button id="btn-login" class="btn btn-primary" style="width:100%; margin-top:12px;">Send Magic Link</button>
       <p id="login-msg" style="color:var(--text-muted); margin-top:12px;"></p>
+      <p style="color:var(--text-muted); font-size:13px; margin-top:8px; cursor:pointer;" onclick="togglePasswordLogin()">Or use password</p>
     </div>
   </div>
 
@@ -333,6 +452,45 @@ PID|1||123456||DOE^JOHN</textarea><input id="explorer-idem" style="width:100%; p
         showDashboard();
       }
     })();
-  </script>
+  
+    function togglePasswordLogin() {
+      const pwField = document.getElementById('login-password');
+      const btn = document.getElementById('btn-login');
+      if (pwField.style.display === 'none') {
+        pwField.style.display = 'block';
+        btn.textContent = 'Sign In';
+        btn.onclick = passwordLogin;
+      } else {
+        pwField.style.display = 'none';
+        btn.textContent = 'Send Magic Link';
+        btn.onclick = magicLinkLogin;
+      }
+    }
+
+    async function magicLinkLogin() {
+      const email = document.getElementById('login-email').value;
+      const btn = document.getElementById('btn-login'); btn.disabled = true; btn.textContent = 'Sending...';
+      const { error } = await supabaseClient.auth.signInWithOtp({ email });
+      document.getElementById('login-msg').textContent = error ? error.message : 'Magic link sent! Check your email.';
+      btn.disabled = false; btn.textContent = 'Send Magic Link';
+    }
+
+    async function passwordLogin() {
+      const email = document.getElementById('login-email').value;
+      const pw = document.getElementById('login-password').value;
+      const btn = document.getElementById('btn-login'); btn.disabled = true; btn.textContent = 'Signing in...';
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password: pw });
+      if (error) {
+        document.getElementById('login-msg').textContent = error.message;
+        btn.disabled = false; btn.textContent = 'Sign In';
+      } else {
+        // Auth state listener will handle dashboard display
+      }
+    }
+
+    // Set initial onclick to magic link
+    document.getElementById('btn-login').onclick = magicLinkLogin;
+
+</script>
 </body>
 </html>
