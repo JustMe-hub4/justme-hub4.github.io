@@ -31,13 +31,27 @@
       const email = document.getElementById('login-email').value;
       const pw = document.getElementById('login-password').value;
       const btn = document.getElementById('btn-login'); btn.disabled = true; btn.textContent = 'Signing in...';
-      const { error } = await supabaseClient.auth.signInWithPassword({ email, password: pw });
+      // Try sign-in first
+      let { error } = await supabaseClient.auth.signInWithPassword({ email, password: pw });
       if (error) {
-        document.getElementById('login-msg').textContent = error.message;
-        btn.disabled = false; btn.textContent = 'Sign In';
-      } else {
-        // Auth state listener will handle dashboard display
+        // If user doesn't exist, try sign-up
+        if (error.message.includes('Invalid login credentials')) {
+          btn.textContent = 'Creating account...';
+          const { error: signUpError } = await supabaseClient.auth.signUp({ email, password: pw });
+          if (signUpError) {
+            document.getElementById('login-msg').textContent = signUpError.message;
+            btn.disabled = false; btn.textContent = 'Sign In';
+          } else {
+            // After sign-up, sign in again automatically
+            await supabaseClient.auth.signInWithPassword({ email, password: pw });
+            // Auth state listener will handle dashboard display
+          }
+        } else {
+          document.getElementById('login-msg').textContent = error.message;
+          btn.disabled = false; btn.textContent = 'Sign In';
+        }
       }
+      // If sign-in succeeded (either directly or after sign-up), dashboard will load via listener
     }
 
     // Set initial onclick to magic link
@@ -71,13 +85,27 @@
       const email = document.getElementById('login-email').value;
       const pw = document.getElementById('login-password').value;
       const btn = document.getElementById('btn-login'); btn.disabled = true; btn.textContent = 'Signing in...';
-      const { error } = await supabaseClient.auth.signInWithPassword({ email, password: pw });
+      // Try sign-in first
+      let { error } = await supabaseClient.auth.signInWithPassword({ email, password: pw });
       if (error) {
-        document.getElementById('login-msg').textContent = error.message;
-        btn.disabled = false; btn.textContent = 'Sign In';
-      } else {
-        // Auth state listener will handle dashboard display
+        // If user doesn't exist, try sign-up
+        if (error.message.includes('Invalid login credentials')) {
+          btn.textContent = 'Creating account...';
+          const { error: signUpError } = await supabaseClient.auth.signUp({ email, password: pw });
+          if (signUpError) {
+            document.getElementById('login-msg').textContent = signUpError.message;
+            btn.disabled = false; btn.textContent = 'Sign In';
+          } else {
+            // After sign-up, sign in again automatically
+            await supabaseClient.auth.signInWithPassword({ email, password: pw });
+            // Auth state listener will handle dashboard display
+          }
+        } else {
+          document.getElementById('login-msg').textContent = error.message;
+          btn.disabled = false; btn.textContent = 'Sign In';
+        }
       }
+      // If sign-in succeeded (either directly or after sign-up), dashboard will load via listener
     }
 
     // Set initial onclick to magic link
@@ -111,13 +139,27 @@
       const email = document.getElementById('login-email').value;
       const pw = document.getElementById('login-password').value;
       const btn = document.getElementById('btn-login'); btn.disabled = true; btn.textContent = 'Signing in...';
-      const { error } = await supabaseClient.auth.signInWithPassword({ email, password: pw });
+      // Try sign-in first
+      let { error } = await supabaseClient.auth.signInWithPassword({ email, password: pw });
       if (error) {
-        document.getElementById('login-msg').textContent = error.message;
-        btn.disabled = false; btn.textContent = 'Sign In';
-      } else {
-        // Auth state listener will handle dashboard display
+        // If user doesn't exist, try sign-up
+        if (error.message.includes('Invalid login credentials')) {
+          btn.textContent = 'Creating account...';
+          const { error: signUpError } = await supabaseClient.auth.signUp({ email, password: pw });
+          if (signUpError) {
+            document.getElementById('login-msg').textContent = signUpError.message;
+            btn.disabled = false; btn.textContent = 'Sign In';
+          } else {
+            // After sign-up, sign in again automatically
+            await supabaseClient.auth.signInWithPassword({ email, password: pw });
+            // Auth state listener will handle dashboard display
+          }
+        } else {
+          document.getElementById('login-msg').textContent = error.message;
+          btn.disabled = false; btn.textContent = 'Sign In';
+        }
       }
+      // If sign-in succeeded (either directly or after sign-up), dashboard will load via listener
     }
 
     // Set initial onclick to magic link
@@ -479,13 +521,27 @@ PID|1||123456||DOE^JOHN</textarea><input id="explorer-idem" style="width:100%; p
       const email = document.getElementById('login-email').value;
       const pw = document.getElementById('login-password').value;
       const btn = document.getElementById('btn-login'); btn.disabled = true; btn.textContent = 'Signing in...';
-      const { error } = await supabaseClient.auth.signInWithPassword({ email, password: pw });
+      // Try sign-in first
+      let { error } = await supabaseClient.auth.signInWithPassword({ email, password: pw });
       if (error) {
-        document.getElementById('login-msg').textContent = error.message;
-        btn.disabled = false; btn.textContent = 'Sign In';
-      } else {
-        // Auth state listener will handle dashboard display
+        // If user doesn't exist, try sign-up
+        if (error.message.includes('Invalid login credentials')) {
+          btn.textContent = 'Creating account...';
+          const { error: signUpError } = await supabaseClient.auth.signUp({ email, password: pw });
+          if (signUpError) {
+            document.getElementById('login-msg').textContent = signUpError.message;
+            btn.disabled = false; btn.textContent = 'Sign In';
+          } else {
+            // After sign-up, sign in again automatically
+            await supabaseClient.auth.signInWithPassword({ email, password: pw });
+            // Auth state listener will handle dashboard display
+          }
+        } else {
+          document.getElementById('login-msg').textContent = error.message;
+          btn.disabled = false; btn.textContent = 'Sign In';
+        }
       }
+      // If sign-in succeeded (either directly or after sign-up), dashboard will load via listener
     }
 
     // Set initial onclick to magic link
