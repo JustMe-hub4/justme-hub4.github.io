@@ -216,11 +216,52 @@ PID|1||123456||DOE^JOHN</textarea><input id="explorer-idem" style="width:100%; p
       if (window.chart) window.chart.destroy();
       const labels = Object.keys(dailyUsage).sort();
       const values = labels.map(d => dailyUsage[d]);
+
+      // Determine today's date string for highlighting
+      const todayStr = new Date().toISOString().slice(0,10);
+
       window.chart = new Chart(ctx.getContext('2d'), {
         type: 'bar',
-        data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#16C7D9' }] },
-        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        data: {
+          labels,
+          datasets: [{
+            label: 'Translations',
+            data: values,
+            backgroundColor: labels.map(l => l === todayStr ? '#22C55E' : '#16C7D9'),
+            borderRadius: 4,
+            barPercentage: 0.6,
+            categoryPercentage: 0.8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `${ctx.parsed.y} translations`
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                stepSize: 1,
+                precision: 0,
+                color: '#94A3B8'
+              },
+              grid: { color: '#1E334A' }
+            },
+            x: {
+              ticks: { color: '#94A3B8', maxRotation: 45 },
+              grid: { display: false }
+            }
+          }
+        }
       });
+
       const total = values.reduce((a,b)=>a+b,0);
       document.getElementById('total-translations').textContent = total;
       document.getElementById('successful-translations').textContent = total;
