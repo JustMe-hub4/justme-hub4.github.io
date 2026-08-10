@@ -109,6 +109,18 @@ def transform_hl7_to_fhir(hl7_message: str) -> dict:
     bundle = Bundle(type="batch", entry=entries, id=str(uuid.uuid4()))
     return bundle.dict()
 
+def json_safe(obj):
+    """Recursively convert date/datetime objects to ISO strings."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, date):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {k: json_safe(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [json_safe(i) for i in obj]
+    return obj
+
 # ---------- Core Endpoints ----------
 @app.get("/health")
 async def health():
@@ -178,10 +190,10 @@ async def translate(request: Request):
             supabase.table("idempotency_store").upsert({
                 "api_key": api_key,
                 "idempotency_key": idem_key,
-                "response": fhir_output,
+                "response": json_safe(fhir_output),
             }, on_conflict="api_key,idempotency_key").execute()
 
-        return fhir_output
+        return json_safe(fhir_output)
     except HTTPException:
         raise
     except Exception as e:
