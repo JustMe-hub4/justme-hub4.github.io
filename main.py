@@ -221,6 +221,42 @@ async def portal_me(user = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="No active API key found")
     return {"api_key": key_resp.data[0]["key"], "credits_remaining": key_resp.data[0]["credits_remaining"]}
 
+@app.post("/portal/rotate-key")
+async def rotate_key(request: Request, user = Depends(get_current_user)):
+    user_id = user.user.id
+    old_resp = supabase.table("api_keys").select("credits_remaining")         .eq("user_id", user_id).eq("active", True).execute()
+    if not old_resp.data:
+        raise HTTPException(status_code=404, detail="No active API key found")
+    old_credits = old_resp.data[0]["credits_remaining"]
+
+    supabase.table("api_keys").update({"active": False})         .eq("user_id", user_id).eq("active", True).execute()
+
+    new_key = os.urandom(16).hex()
+    supabase.table("api_keys").insert({
+        "key": new_key,
+        "credits_remaining": old_credits,
+        "user_id": user_id,
+        "active": True
+    }).execute()
+
+    supabase.table("users").update({"api_key": new_key}).eq("id", user_id).execute()
+    return {"new_api_key": new_key, "credits_remaining": old_credits}
+
+@app.get("/portal/usage")
+async def portal_usage(user = Depends(get_current_user)):
+    user_id = user.user.id
+    key_resp = supabase.table("api_keys").select("key")         .eq("user_id", user_id).eq("active", True).execute()
+    if not key_resp.data:
+        return {"daily_usage": {}}
+    api_key = key_resp.data[0]["key"]
+    seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    result = supabase.table("translation_logs").select("created_at")         .eq("api_key", api_key).gte("created_at", seven_days_ago).order("created_at", desc=False).execute()
+    daily = defaultdict(int)
+    for row in result.data:
+        date_str = row["created_at"][:10]
+        daily[date_str] += 1
+    return {"daily_usage": dict(sorted(daily.items()))}
+
 # ---------- Stripe ----------
 from pydantic import BaseModel
 class CheckoutRequest(BaseModel):
