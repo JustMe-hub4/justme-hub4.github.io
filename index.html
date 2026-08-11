@@ -329,6 +329,24 @@ PID|1||123456||DOE^JOHN</textarea>
       }
     }
 
+    
+    function updateApiKeyDisplay() {
+      const el = document.getElementById('api-key-display');
+      const docEl = document.getElementById('doc-api-key');
+      const docInline = document.getElementById('doc-key-inline');
+      if (apiKeyRevealed) {
+        el.textContent = currentApiKey;
+        document.getElementById('btn-show-key').textContent = 'Hide';
+        if (docEl) docEl.textContent = currentApiKey;
+        if (docInline) docInline.textContent = currentApiKey;
+      } else {
+        el.textContent = currentApiKey.substring(0,12) + '••••••••••••••••••••••••';
+        document.getElementById('btn-show-key').textContent = 'Show';
+        if (docEl) docEl.textContent = '••••••••••••••••••••••••';
+        if (docInline) docInline.textContent = 'YOUR_KEY';
+      }
+    }
+
     function toggleKey() {
       apiKeyRevealed = !apiKeyRevealed;
       if (apiKeyRevealed) document.getElementById('api-key-display').textContent = currentApiKey;
