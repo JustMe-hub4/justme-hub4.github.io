@@ -15,7 +15,7 @@
     .btn-primary { background: var(--primary); color: #07111F; }
     .btn-secondary { background: var(--surface-elevated); color: var(--text); border: 1px solid var(--border); }
     .btn-danger { background: var(--error); color: white; }
-    .hidden { display: none !important; }
+    .hidden { display: none; }
     .key-display { font-family: monospace; background: var(--surface-elevated); padding: 10px; border-radius: 6px; word-break: break-all; }
     .flex-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
   
@@ -60,7 +60,7 @@
         </nav>
       </div>
       <div class="main">
-        <div id="tab-dashboard" class="tab-content">
+        <div id="tab-dashboard" class="tab-content active">
     <h2>Dashboard</h2>
     <p>API Key:</p>
     <div class="key-display" id="api-key-display">••••••••••••••••••••••••</div>
@@ -71,7 +71,7 @@
     <p style="margin-top:16px;">Credits: <strong id="credit-balance">0</strong></p>
     <button onclick="supabaseClient.auth.signOut()" class="btn btn-danger">Sign Out</button>
         </div>
-        <div id="tab-usage" class="tab-content hidden"><h2>Usage</h2><div class="card"><canvas id="usage-chart" style="max-height:200px; margin-top:10px;"></canvas></div></div>
+        <div id="tab-usage" class="tab-content hidden"><h2>Usage</h2><div class="card"><canvas id="usage-chart" style="min-height: 200px; max-height: 300px; margin-top:10px;"></canvas></div></div>
         <div id="tab-billing" class="tab-content hidden"><h2>Billing</h2><p>Billing information will appear here.</p></div>
         <div id="tab-docs" class="tab-content hidden"><h2>Quick Start</h2><p>Documentation will appear here.</p></div>
         <div id="tab-explorer" class="tab-content hidden"><h2>API Explorer</h2><p>Explorer will appear here.</p></div>
