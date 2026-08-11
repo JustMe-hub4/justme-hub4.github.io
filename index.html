@@ -191,13 +191,43 @@ PID|1||123456||DOE^JOHN</textarea>
     function renderUsageChart() {
       const ctx = document.getElementById('usage-chart');
       if (!ctx) return;
-      if (window.chart) window.chart.destroy();
-      const labels = Object.keys(dailyUsage).sort();
-      const values = labels.map(d => dailyUsage[d]);
+      if (window.chart) { window.chart.destroy(); window.chart = null; }
+
+      // Build last 7 days (including today)
+      const days = [];
+      const values = [];
+      const today = new Date();
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().slice(0,10);
+        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+        days.push(dayName);
+        values.push(dailyUsage[dateStr] || 0);
+      }
+
       window.chart = new Chart(ctx.getContext('2d'), {
-        type: 'line', fill: true, tension: 0.3, borderColor: '#16C7D9', backgroundColor: 'rgba(22,199,217,0.1)', pointBackgroundColor: '#16C7D9',
-        data: { labels, datasets: [{ label: 'Translations', data: values,  }] },
-        options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { color: '#94A3B8' } }, x: { ticks: { color: '#94A3B8' } } }, plugins: { legend: { display: false } } }
+        type: 'bar',
+        data: {
+          labels: days,
+          datasets: [{
+            label: 'Translations',
+            data: values,
+            backgroundColor: '#16C7D9',
+            borderRadius: 4,
+            barPercentage: 0.6,
+            categoryPercentage: 0.8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0, color: '#94A3B8' }, grid: { color: '#1E334A' } },
+            x: { ticks: { color: '#94A3B8' }, grid: { display: false } }
+          }
+        }
       });
     }
 
