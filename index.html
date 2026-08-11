@@ -89,7 +89,23 @@
       <h3 style="margin-top:24px;">Invoice History</h3>
       <div id="invoice-list">No invoices yet.</div>
     </div>
-        <div id="tab-docs" class="tab-content hidden"><h2>Quick Start</h2><p>Documentation will appear here.</p></div>
+        <div id="tab-docs" class="tab-content hidden">
+      <h2>Quick Start</h2>
+      <div class="card">
+        <p>1. Copy your API key</p>
+        <div class="key-display" id="doc-api-key">••••••••••••••••••••••••</div>
+        <button onclick="copyKey()" class="btn btn-secondary" style="margin-top:8px;">Copy</button>
+        <br/><br/>
+        <p>2. Send a request</p>
+        <pre style="background:var(--surface-elevated); padding:12px; border-radius:6px; overflow-x:auto; font-size:13px;">
+curl -X POST https://quack-xzno.onrender.com/v1/translate \
+  -H "X-API-Key: <span id="doc-key-inline">YOUR_KEY</span>" \
+  -H "Content-Type: text/plain" \
+  --data-binary @message.hl7
+        </pre>
+        <p style="color:var(--text-muted); margin-top:8px;">Include an optional <strong>X-Idempotency-Key</strong> header for safe retries.</p>
+      </div>
+    </div>
         <div id="tab-explorer" class="tab-content hidden">
       <h2>API Explorer</h2>
       <div class="card">
