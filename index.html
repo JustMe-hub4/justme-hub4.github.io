@@ -318,8 +318,12 @@ PID|1||123456||DOE^JOHN</textarea>
           currentApiKey = d.new_api_key;
           credits = d.credits_remaining;
           apiKeyRevealed = true;
-          updateApiKeyDisplay();
-          updateCreditDisplay();
+          try {
+            updateApiKeyDisplay();
+            updateCreditDisplay();
+          } catch (updateErr) {
+            console.error('Update display error:', updateErr);
+          }
           showToast('Key rotated! Credits transferred.', 'success');
         } else {
           const err = await res.text();
@@ -350,6 +354,12 @@ PID|1||123456||DOE^JOHN</textarea>
         if (docEl) docEl.textContent = '••••••••••••••••••••••••';
         if (docInline) docInline.textContent = 'YOUR_KEY';
       }
+    }
+
+    
+    function updateCreditDisplay() {
+      const el = document.getElementById('credit-balance');
+      if (el) el.textContent = credits.toLocaleString();
     }
 
     function toggleKey() {
