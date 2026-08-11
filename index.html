@@ -72,7 +72,23 @@
     <button onclick="supabaseClient.auth.signOut()" class="btn btn-danger">Sign Out</button>
         </div>
         <div id="tab-usage" class="tab-content hidden"><h2>Usage</h2><div class="card"><canvas id="usage-chart" style="min-height: 200px; max-height: 300px; margin-top:10px;"></canvas></div></div>
-        <div id="tab-billing" class="tab-content hidden"><h2>Billing</h2><p>Billing information will appear here.</p></div>
+        <div id="tab-billing" class="tab-content hidden">
+      <h2>Buy Credits</h2>
+      <div class="card">
+        <h3>Starter - 100 credits - $30</h3>
+        <button onclick="buyCredits('price_1U1xzUIUjoQtwpInIy0o6u1O')" class="btn btn-primary">Buy</button>
+      </div>
+      <div class="card">
+        <h3>Growth - 10,000 credits - $2,000</h3>
+        <button onclick="buyCredits('price_1U1xzUIUjoQtwpInNFq6TRCU')" class="btn btn-primary">Buy</button>
+      </div>
+      <div class="card">
+        <h3>Volume - 75,000 credits - $9,000</h3>
+        <button onclick="buyCredits('price_1U1xzUIUjoQtwpInL8G3EBZX')" class="btn btn-primary">Buy</button>
+      </div>
+      <h3 style="margin-top:24px;">Invoice History</h3>
+      <div id="invoice-list">No invoices yet.</div>
+    </div>
         <div id="tab-docs" class="tab-content hidden"><h2>Quick Start</h2><p>Documentation will appear here.</p></div>
         <div id="tab-explorer" class="tab-content hidden">
       <h2>API Explorer</h2>
@@ -180,6 +196,32 @@ PID|1||123456||DOE^JOHN</textarea>
         </div>`;
       // Refresh usage chart after translation
       fetchUsage();
+    }
+
+    
+    async function buyCredits(priceId) {
+      const res = await fetch(`${API_BASE}/portal/create-checkout-session`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ price_id: priceId })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        window.location.href = data.url;
+      } else {
+        alert('Could not start checkout.');
+      }
+    }
+    let invoices = [];
+    async function fetchInvoices() {
+      const res = await fetch(`${API_BASE}/portal/invoices`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (res.ok) {
+        const d = await res.json();
+        invoices = d.invoices || [];
+        const list = document.getElementById('invoice-list');
+        if (invoices.length === 0) list.textContent = 'No invoices yet.';
+        else list.innerHTML = invoices.map(inv => `${new Date(inv.created_at).toLocaleDateString()} - $${(inv.amount_total/100).toFixed(2)} - ${inv.credits_purchased} credits`).join('<br>');
+      }
     }
 
     function toggleKey() {
