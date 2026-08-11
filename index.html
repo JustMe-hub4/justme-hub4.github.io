@@ -304,6 +304,10 @@ PID|1||123456||DOE^JOHN</textarea>
     }
 
     
+    
+    function showLogoutModal() { document.getElementById('logout-modal').classList.remove('hidden'); }
+    function closeLogoutModal() { document.getElementById('logout-modal').classList.add('hidden'); }
+
     function showRotateModal() { document.getElementById('rotate-modal').classList.remove('hidden'); }
     function closeRotateModal() { document.getElementById('rotate-modal').classList.add('hidden'); }
     async function rotateKey() {
@@ -401,7 +405,19 @@ PID|1||123456||DOE^JOHN</textarea>
   </script>
 
   
-  <div id="rotate-modal" class="modal-overlay hidden">
+  
+  <div id="logout-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h3>Sign Out</h3>
+      <p>Are you sure you want to sign out?</p>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:20px;">
+        <button class="btn btn-secondary" onclick="closeLogoutModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="showLogoutModal()">Sign Out</button>
+      </div>
+    </div>
+  </div>
+
+<div id="rotate-modal" class="modal-overlay hidden">
     <div class="modal-box">
       <h3>Rotate API Key</h3>
       <p>Your current key will be <strong>immediately deactivated</strong>.</p>
