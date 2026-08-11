@@ -247,7 +247,16 @@ PID|1||123456||DOE^JOHN</textarea>
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
+          plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return context.parsed.y + ' translations';
+              }
+            }
+          }
+        },
           scales: {
             y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0, color: '#94A3B8' }, grid: { color: '#1E334A' } },
             x: { ticks: { color: '#94A3B8' }, grid: { display: false } }
