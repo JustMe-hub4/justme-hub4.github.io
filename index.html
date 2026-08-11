@@ -315,9 +315,6 @@ PID|1||123456||DOE^JOHN</textarea>
 
     
     
-    function showLogoutModal() { document.getElementById('logout-modal').classList.remove('hidden'); }
-    function closeLogoutModal() { document.getElementById('logout-modal').classList.add('hidden'); }
-
     function showRotateModal() { document.getElementById('rotate-modal').classList.remove('hidden'); }
     function closeRotateModal() { document.getElementById('rotate-modal').classList.add('hidden'); }
     async function rotateKey() {
@@ -422,7 +419,7 @@ PID|1||123456||DOE^JOHN</textarea>
       <p>Are you sure you want to sign out?</p>
       <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:20px;">
         <button class="btn btn-secondary" onclick="closeLogoutModal()">Cancel</button>
-        <button class="btn btn-danger" onclick="showLogoutModal()">Sign Out</button>
+        <button class="btn btn-danger" onclick="if(confirm('Are you sure you want to sign out?')) supabaseClient.auth.signOut()">Sign Out</button>
       </div>
     </div>
   </div>
