@@ -29,6 +29,9 @@
     <button id="btn-login" class="btn btn-primary">Sign In / Sign Up</button>
     <p id="login-msg" style="color:var(--text-muted); margin-top:12px;"></p>
     <button onclick="supabaseClient.auth.signInWithOAuth({ provider: 'google' })" class="btn btn-secondary">Continue with Google</button>
+    <button onclick="supabaseClient.auth.signInWithOAuth({ provider: 'github' })" class="btn btn-secondary">Continue with GitHub</button>
+    <button onclick="supabaseClient.auth.signInWithOAuth({ provider: 'linkedin' })" class="btn btn-secondary">Continue with LinkedIn</button>
+    <button onclick="supabaseClient.auth.signInWithOAuth({ provider: 'facebook' })" class="btn btn-secondary">Continue with Facebook</button>
   </div>
 
   <div id="dashboard-container" class="card hidden">
