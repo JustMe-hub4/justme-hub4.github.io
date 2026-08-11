@@ -257,16 +257,19 @@ async def rotate_key(request: Request, user = Depends(get_current_user)):
 @app.get("/portal/usage")
 async def portal_usage(user = Depends(get_current_user)):
     user_id = user.user.id
-    key_resp = supabase.table("api_keys").select("key")         .eq("user_id", user_id).eq("active", True).execute()
-    if not key_resp.data:
+    # Get all API keys (active and inactive) for the user
+    keys_resp = supabase.table("api_keys").select("key")         .eq("user_id", user_id).execute()
+    if not keys_resp.data:
         return {"daily_usage": {}}
-    api_key = key_resp.data[0]["key"]
+    api_keys = [row["key"] for row in keys_resp.data]
     seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-    result = supabase.table("translation_logs").select("created_at")         .eq("api_key", api_key).gte("created_at", seven_days_ago).order("created_at", desc=False).execute()
     daily = defaultdict(int)
-    for row in result.data:
-        date_str = row["created_at"][:10]
-        daily[date_str] += 1
+    # Fetch logs for each key (could be optimized, but fine for pilot)
+    for key in api_keys:
+        result = supabase.table("translation_logs").select("created_at")             .eq("api_key", key).gte("created_at", seven_days_ago).order("created_at", desc=False).execute()
+        for row in result.data:
+            date_str = row["created_at"][:10]
+            daily[date_str] += 1
     return {"daily_usage": dict(sorted(daily.items()))}
 
 # ---------- Stripe ----------
