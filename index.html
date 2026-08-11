@@ -36,6 +36,10 @@
     .toast-info { background: var(--primary); color: #07111F; }
     @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
+
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-box { background: var(--surface); border-radius: 12px; padding: 30px; width: 400px; border: 1px solid var(--border); }
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
@@ -74,6 +78,7 @@
     <div class="flex-row">
       <button class="btn btn-secondary" onclick="toggleKey()">Show</button>
       <button class="btn btn-secondary" onclick="copyKey()">Copy</button>
+        <button class="btn btn-danger" onclick="showRotateModal()">Rotate</button>
     </div>
     <p style="margin-top:16px;">Credits: <strong id="credit-balance">0</strong></p>
     <button onclick="supabaseClient.auth.signOut()" class="btn btn-danger">Sign Out</button>
@@ -295,6 +300,35 @@ PID|1||123456||DOE^JOHN</textarea>
       }
     }
 
+    
+    function showRotateModal() { document.getElementById('rotate-modal').classList.remove('hidden'); }
+    function closeRotateModal() { document.getElementById('rotate-modal').classList.add('hidden'); }
+    async function rotateKey() {
+      closeRotateModal();
+      try {
+        const res = await fetch(`${API_BASE}/portal/rotate-key`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        if (res.ok) {
+          const d = await res.json();
+          currentApiKey = d.new_api_key;
+          credits = d.credits_remaining;
+          apiKeyRevealed = true;
+          updateApiKeyDisplay();
+          updateCreditDisplay();
+          showToast('Key rotated! Credits transferred.', 'success');
+        } else {
+          const err = await res.text();
+          console.error('Rotate error:', res.status, err);
+          showToast('Rotation failed.', 'error');
+        }
+      } catch (e) {
+        console.error('Rotate network error:', e);
+        showToast('Network error during rotation.', 'error');
+      }
+    }
+
     function toggleKey() {
       apiKeyRevealed = !apiKeyRevealed;
       if (apiKeyRevealed) document.getElementById('api-key-display').textContent = currentApiKey;
@@ -333,7 +367,20 @@ PID|1||123456||DOE^JOHN</textarea>
     })();
   </script>
 
-  <div id="toast-container" style="position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:2000;"></div>
+  
+  <div id="rotate-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h3>Rotate API Key</h3>
+      <p>Your current key will be <strong>immediately deactivated</strong>.</p>
+      <p>Credits will be transferred to the new key.</p>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:20px;">
+        <button class="btn btn-secondary" onclick="closeRotateModal()">Cancel</button>
+        <button class="btn btn-danger" id="confirm-rotate-btn" onclick="rotateKey()">Rotate Key</button>
+      </div>
+    </div>
+  </div>
+
+<div id="toast-container" style="position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:2000;"></div>
 
 </body>
 </html>
