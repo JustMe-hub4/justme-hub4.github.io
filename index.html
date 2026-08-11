@@ -116,7 +116,13 @@ PID|1||123456||DOE^JOHN</textarea>
         <div id="explorer-response" style="margin-top:16px;"></div>
       </div>
     </div>
-        <div id="tab-settings" class="tab-content hidden"><h2>Settings</h2><p>Account settings will appear here.</p></div>
+        <div id="tab-settings" class="tab-content hidden">
+      <h2>Settings</h2>
+      <div class="card">
+        <p>Email: <span id="settings-email"></span></p>
+        <p>Member since: <span id="settings-joined"></span></p>
+      </div>
+    </div>
       </div>
     </div>
   </div>
@@ -256,6 +262,8 @@ PID|1||123456||DOE^JOHN</textarea>
         session = authSession;
         document.getElementById('login-container').classList.add('hidden');
         document.getElementById('dashboard-container').classList.remove('hidden');
+        document.getElementById('settings-email').textContent = session.user.email;
+        document.getElementById('settings-joined').textContent = new Date(session.user.created_at).toLocaleDateString();
         fetchProfile();
       } else {
         document.getElementById('login-container').classList.remove('hidden');
@@ -269,6 +277,8 @@ PID|1||123456||DOE^JOHN</textarea>
         session = data.session;
         document.getElementById('login-container').classList.add('hidden');
         document.getElementById('dashboard-container').classList.remove('hidden');
+        document.getElementById('settings-email').textContent = session.user.email;
+        document.getElementById('settings-joined').textContent = new Date(session.user.created_at).toLocaleDateString();
         fetchProfile();
       }
     })();
