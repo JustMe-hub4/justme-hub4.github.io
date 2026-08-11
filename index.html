@@ -40,6 +40,9 @@
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
     .modal-box { background: var(--surface); border-radius: 12px; padding: 30px; width: 400px; border: 1px solid var(--border); }
 
+
+    #rotate-modal.hidden { display: none !important; }
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
@@ -332,16 +335,18 @@ PID|1||123456||DOE^JOHN</textarea>
     
     function updateApiKeyDisplay() {
       const el = document.getElementById('api-key-display');
+      if (!el) return;
       const docEl = document.getElementById('doc-api-key');
       const docInline = document.getElementById('doc-key-inline');
+      const btnShow = document.getElementById('btn-show-key');
       if (apiKeyRevealed) {
         el.textContent = currentApiKey;
-        document.getElementById('btn-show-key').textContent = 'Hide';
+        if (btnShow) btnShow.textContent = 'Hide';
         if (docEl) docEl.textContent = currentApiKey;
         if (docInline) docInline.textContent = currentApiKey;
       } else {
         el.textContent = currentApiKey.substring(0,12) + '••••••••••••••••••••••••';
-        document.getElementById('btn-show-key').textContent = 'Show';
+        if (btnShow) btnShow.textContent = 'Show';
         if (docEl) docEl.textContent = '••••••••••••••••••••••••';
         if (docInline) docInline.textContent = 'YOUR_KEY';
       }
@@ -400,5 +405,11 @@ PID|1||123456||DOE^JOHN</textarea>
 
 <div id="toast-container" style="position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:2000;"></div>
 
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const modal = document.getElementById('rotate-modal');
+      if (modal) modal.classList.add('hidden');
+    });
+</script>
 </body>
 </html>
