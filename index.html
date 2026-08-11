@@ -193,8 +193,8 @@ PID|1||123456||DOE^JOHN</textarea>
       const labels = Object.keys(dailyUsage).sort();
       const values = labels.map(d => dailyUsage[d]);
       window.chart = new Chart(ctx.getContext('2d'), {
-        type: 'bar',
-        data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#16C7D9', borderRadius: 4 }] },
+        type: 'line', fill: true, tension: 0.3, borderColor: '#16C7D9', backgroundColor: 'rgba(22,199,217,0.1)', pointBackgroundColor: '#16C7D9',
+        data: { labels, datasets: [{ label: 'Translations', data: values,  }] },
         options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { color: '#94A3B8' } }, x: { ticks: { color: '#94A3B8' } } }, plugins: { legend: { display: false } } }
       });
     }
