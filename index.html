@@ -29,6 +29,13 @@
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
+
+    .toast { padding: 12px 20px; border-radius: 8px; font-weight: 500; animation: slideIn 0.3s; }
+    .toast-success { background: var(--success); }
+    .toast-error { background: var(--error); }
+    .toast-info { background: var(--primary); color: #07111F; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
@@ -132,6 +139,16 @@ PID|1||123456||DOE^JOHN</textarea>
     const SUPABASE_ANON_KEY = 'sb_publishable_4y3_i7S_YNCgOoEkbbVWRg_qXLBNlyf';
     const API_BASE = 'https://quack-xzno.onrender.com';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast toast-' + type;
+      toast.textContent = msg;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
     let session = null, currentApiKey = '', apiKeyRevealed = false, credits = 0;
 
     document.getElementById('btn-login').addEventListener('click', async () => {
@@ -263,7 +280,7 @@ PID|1||123456||DOE^JOHN</textarea>
         const data = await res.json();
         window.location.href = data.url;
       } else {
-        alert('Could not start checkout.');
+        showToast('Could not start checkout.', 'error');
       }
     }
     let invoices = [];
@@ -286,7 +303,7 @@ PID|1||123456||DOE^JOHN</textarea>
 
     function copyKey() {
       navigator.clipboard.writeText(currentApiKey);
-      alert('API key copied!');
+      showToast('API key copied!', 'success');
     }
 
     supabaseClient.auth.onAuthStateChange((event, authSession) => {
@@ -315,5 +332,8 @@ PID|1||123456||DOE^JOHN</textarea>
       }
     })();
   </script>
+
+  <div id="toast-container" style="position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:2000;"></div>
+
 </body>
 </html>
