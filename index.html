@@ -74,7 +74,16 @@
         <div id="tab-usage" class="tab-content hidden"><h2>Usage</h2><div class="card"><canvas id="usage-chart" style="min-height: 200px; max-height: 300px; margin-top:10px;"></canvas></div></div>
         <div id="tab-billing" class="tab-content hidden"><h2>Billing</h2><p>Billing information will appear here.</p></div>
         <div id="tab-docs" class="tab-content hidden"><h2>Quick Start</h2><p>Documentation will appear here.</p></div>
-        <div id="tab-explorer" class="tab-content hidden"><h2>API Explorer</h2><p>Explorer will appear here.</p></div>
+        <div id="tab-explorer" class="tab-content hidden">
+      <h2>API Explorer</h2>
+      <div class="card">
+        <textarea id="explorer-hl7" style="width:100%; height:120px; background:var(--surface-elevated); border:1px solid var(--border); border-radius:6px; color:var(--text); padding:10px; font-family:monospace;">MSH|^~\&|LAB|HOSPITAL|APP|20260809120000||ADT^A01|MSG001|P|2.5
+PID|1||123456||DOE^JOHN</textarea>
+        <input id="explorer-idem" style="width:100%; padding:10px; background:var(--surface-elevated); border:1px solid var(--border); border-radius:6px; color:var(--text); margin-top:8px;" placeholder="Idempotency Key (optional)">
+        <button onclick="exploreTranslate()" class="btn btn-primary" style="margin-top:12px;">▶ Translate</button>
+        <div id="explorer-response" style="margin-top:16px;"></div>
+      </div>
+    </div>
         <div id="tab-settings" class="tab-content hidden"><h2>Settings</h2><p>Account settings will appear here.</p></div>
       </div>
     </div>
@@ -150,6 +159,27 @@
         data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#16C7D9', borderRadius: 4 }] },
         options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { color: '#94A3B8' } }, x: { ticks: { color: '#94A3B8' } } }, plugins: { legend: { display: false } } }
       });
+    }
+
+    
+    async function exploreTranslate() {
+      const hl7 = document.getElementById('explorer-hl7').value;
+      const idem = document.getElementById('explorer-idem').value;
+      const headers = { 'Content-Type': 'text/plain', 'X-API-Key': currentApiKey };
+      if (idem) headers['X-Idempotency-Key'] = idem;
+      const start = Date.now();
+      const res = await fetch(`${API_BASE}/v1/translate`, { method: 'POST', headers, body: hl7 });
+      const latency = Date.now() - start;
+      const body = await res.text();
+      let pretty = ''; try { pretty = JSON.stringify(JSON.parse(body), null, 2); } catch { pretty = body; }
+      document.getElementById('explorer-response').innerHTML = `
+        <div class="card">
+          <span style="color:${res.ok ? 'var(--success)' : 'var(--error)'}">${res.status} ${res.statusText}</span>
+          <span style="color:var(--text-muted); margin-left:8px;">${latency}ms</span>
+          <pre style="background:var(--surface-elevated); padding:12px; margin-top:8px; border-radius:8px; overflow-x:auto; color:var(--text-secondary);">${pretty}</pre>
+        </div>`;
+      // Refresh usage chart after translation
+      fetchUsage();
     }
 
     function toggleKey() {
