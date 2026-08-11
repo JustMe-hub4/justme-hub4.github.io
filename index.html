@@ -36,6 +36,7 @@
     <button id="btn-login" class="btn btn-primary">Sign In / Sign Up</button>
     <p id="login-msg" style="color:var(--text-muted); margin-top:12px;"></p>
     <span class="toggle-link" id="toggle-auth-mode">Or use password</span>
+      <button onclick="supabaseClient.auth.signInWithOAuth({ provider: 'google' })" class="btn btn-secondary" style="margin-top:12px; width:100%;">Continue with Google</button>
   </div>
 
   <div id="dashboard-container" class="card hidden">
