@@ -356,11 +356,9 @@ async def stripe_webhook(request: Request):
             credits_to_add = int(credits_str)
             try:
                 supabase.rpc("add_credits", {"target_user_id": user_id, "amount": credits_to_add}).execute()
+                logger.info(f"Credits added via RPC for user {user_id}: +{credits_to_add}")
             except Exception as e:
                 logger.error(f"RPC add_credits failed: {e}")
-                supabase.table("api_keys").update({
-                    "credits_remaining": supabase.raw(f"credits_remaining + {credits_to_add}")
-                }).eq("user_id", user_id).eq("active", True).execute()
             supabase.table("stripe_payments").insert({
                 "user_id": user_id,
                 "stripe_checkout_session_id": session["id"],
