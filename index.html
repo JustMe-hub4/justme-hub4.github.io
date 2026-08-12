@@ -333,12 +333,20 @@ PID|1||123456||DOE^JOHN</textarea>
 
     function updateCreditDisplay() {
       const el = document.getElementById('credit-balance');
-      if (el) el.textContent = credits.toLocaleString();
       const warning = document.getElementById('credit-warning');
-      if (warning) {
-        if (credits < 10) warning.innerHTML = '<span style="color:var(--error)">🔴 Credits almost empty.</span>';
-        else if (credits < 100) warning.innerHTML = '<span style="color:var(--warning)">⚠ Only ' + credits + ' credits left.</span>';
-        else warning.innerHTML = '';
+      if (!el) return;
+      if (credits < 10) {
+        el.style.color = '#EF4444';
+        el.textContent = '🔴 ' + credits.toLocaleString();
+        if (warning) warning.innerHTML = 'CREDITS ALMOST EMPTY';
+      } else if (credits < 100) {
+        el.style.color = '#F59E0B';
+        el.textContent = '⚠ ' + credits.toLocaleString();
+        if (warning) warning.innerHTML = 'Consider buying more credits.';
+      } else {
+        el.style.color = 'var(--text)';
+        el.textContent = credits.toLocaleString();
+        if (warning) warning.innerHTML = '';
       }
     }
 
