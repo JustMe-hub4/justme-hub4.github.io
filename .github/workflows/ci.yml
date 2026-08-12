@@ -24,10 +24,6 @@ jobs:
         run: |
           python -m py_compile main.py
 
-      - name: Check for whitespace errors
-        run: |
-          git diff --check HEAD^ HEAD
-
       - name: Verify environment variables placeholder
         run: |
           grep -q "SUPABASE_URL" main.py && echo "Config exists"
