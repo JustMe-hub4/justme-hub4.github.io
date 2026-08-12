@@ -136,6 +136,7 @@ curl -X POST https://quack-xzno.onrender.com/v1/translate \\
         <div id="tab-explorer" class="tab-content hidden">
           <h2>API Explorer</h2>
           <div class="card">
+            <input type="text" id="explorer-api-key" placeholder="Paste your API key here if not auto-filled" style="width:100%; padding:10px; background:var(--surface-elevated); border:1px solid var(--border); border-radius:6px; color:var(--text); margin-bottom:8px;">
             <textarea id="explorer-hl7" style="width:100%; height:120px; background:var(--surface-elevated); border:1px solid var(--border); border-radius:6px; color:var(--text); padding:10px; font-family:monospace;">MSH|^~\&|LAB|HOSPITAL|APP|20260809120000||ADT^A01|MSG001|P|2.5
 PID|1||123456||DOE^JOHN</textarea>
             <input id="explorer-idem" style="width:100%; padding:10px; background:var(--surface-elevated); border:1px solid var(--border); border-radius:6px; color:var(--text); margin-top:8px;" placeholder="Idempotency Key (optional)">
@@ -449,7 +450,13 @@ PID|1||123456||DOE^JOHN</textarea>
     async function exploreTranslate() {
       const hl7 = document.getElementById('explorer-hl7').value;
       const idem = document.getElementById('explorer-idem').value;
-      const headers = { 'Content-Type': 'text/plain', 'X-API-Key': currentApiKey };
+      const manualKey = document.getElementById('explorer-api-key').value.trim();
+      const apiKeyToUse = manualKey || currentApiKey;
+      if (!apiKeyToUse || apiKeyToUse === '********') {
+        showToast('Please paste your API key in the Explorer field.', 'error');
+        return;
+      }
+      const headers = { 'Content-Type': 'text/plain', 'X-API-Key': apiKeyToUse };
       if (idem) headers['X-Idempotency-Key'] = idem;
       const start = Date.now();
       const res = await fetch(`${API_BASE}/v1/translate`, { method: 'POST', headers, body: hl7 });
