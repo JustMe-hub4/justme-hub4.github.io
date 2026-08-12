@@ -46,7 +46,12 @@
     .modal-box { background: var(--surface); border-radius: 12px; padding: 30px; width: 400px; border: 1px solid var(--border); }
     .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 8px; }
     @keyframes spin { to { transform: rotate(360deg); } }
-  </style>
+  
+    .spinner-overlay { position: absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center; background: rgba(16,29,45,0.7); z-index:10; }
+    .spinner { width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.2); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+</style>
 </head>
 <body>
   <div id="login-container">
@@ -82,7 +87,8 @@
       <div class="main">
         <div id="tab-dashboard" class="tab-content active">
           <h2>Dashboard</h2>
-          <div class="card">
+          <div class="card" style="position:relative;">
+            <div id="credit-spinner" class="spinner-overlay hidden"><div class="spinner"></div></div>
             <strong>Available Credits</strong>
             <div style="font-size:2rem; font-weight:700;" id="credit-balance">0</div>
             <div id="credit-warning" style="margin-top:8px;"></div>
@@ -99,6 +105,7 @@
           </div>
           <div class="card">
             <strong>Translations (Last 7 Days)</strong>
+            <div id="usage-spinner" class="spinner-overlay hidden"><div class="spinner"></div></div>
             <canvas id="usage-chart" style="min-height:250px; max-height:400px; margin-top:10px;"></canvas>
           </div>
         </div>
@@ -114,7 +121,8 @@
           <div class="card"><h3>Growth - 10,000 credits - $2,000</h3><button class="btn btn-primary" onclick="buyCredits('price_1U1xzUIUjoQtwpInNFq6TRCU')">Buy</button></div>
           <div class="card"><h3>Volume - 75,000 credits - $9,000</h3><button class="btn btn-primary" onclick="buyCredits('price_1U1xzUIUjoQtwpInL8G3EBZX')">Buy</button></div>
           <h3 style="margin-top:24px;">Invoice History</h3>
-          <div id="invoice-list">No invoices yet.</div>
+          <div id="invoice-spinner" class="spinner-overlay hidden"><div class="spinner"></div></div>
+            <div id="invoice-list">No invoices yet.</div>
         </div>
         <div id="tab-docs" class="tab-content hidden">
           <h2>Quick Start</h2>
@@ -184,6 +192,16 @@ PID|1||123456||DOE^JOHN</textarea>
     let stripe = typeof Stripe !== 'undefined' ? Stripe(STRIPE_KEY) : null;
     let session = null, currentApiKey = '', apiKeyRevealed = false, credits = 0, dailyUsage = {}, invoices = [];
 
+    
+    function showSpinner(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('hidden');
+    }
+    function hideSpinner(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    }
+
     function showToast(msg, type = 'info') {
       const container = document.getElementById('toast-container');
       const toast = document.createElement('div');
@@ -248,6 +266,11 @@ PID|1||123456||DOE^JOHN</textarea>
       document.getElementById('settings-email').textContent = session.user.email;
       document.getElementById('settings-joined').textContent = new Date(session.user.created_at).toLocaleDateString();
       fetchProfile(); fetchUsage(); fetchInvoices();
+      setTimeout(() => {
+        hideSpinner('credit-spinner');
+        hideSpinner('usage-spinner');
+        hideSpinner('invoice-spinner');
+      }, 2000);
     }
 
     function showLogin() {
@@ -281,10 +304,16 @@ PID|1||123456||DOE^JOHN</textarea>
       if (link) link.classList.add('active');
       if (tab === 'usage') { setTimeout(fetchUsage, 200); }
       if (tab === 'billing') { fetchInvoices(); }
-      if (tab === 'dashboard') { fetchProfile(); fetchUsage(); fetchInvoices(); }
+      if (tab === 'dashboard') { fetchProfile(); fetchUsage(); fetchInvoices();
+      setTimeout(() => {
+        hideSpinner('credit-spinner');
+        hideSpinner('usage-spinner');
+        hideSpinner('invoice-spinner');
+      }, 2000); }
     }
 
     async function fetchProfile() {
+      showSpinner('credit-spinner');
       const res = await fetch(`${API_BASE}/portal/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
       if (res.ok) {
         const d = await res.json();
@@ -463,6 +492,13 @@ PID|1||123456||DOE^JOHN</textarea>
       const latency = Date.now() - start;
       const body = await res.text();
       let pretty = ''; try { pretty = JSON.stringify(JSON.parse(body), null, 2); } catch { pretty = body; }
+      if (res.status === 429) {
+        showToast('Rate limit reached. Please wait a minute and try again.', 'warning');
+      } else if (!res.ok) {
+        showToast('Translation failed: ' + res.status, 'error');
+      } else {
+        showToast('Translation successful!', 'success');
+      }
       document.getElementById('explorer-response').innerHTML = `<div class="card"><span style="color:${res.ok ? 'var(--success)' : 'var(--error)'}">${res.status}</span> ${latency}ms<pre style="background:var(--surface-elevated); padding:12px; margin-top:8px; overflow-x:auto; color:var(--text-secondary);">${pretty}</pre></div>`;
       fetchUsage();
     }

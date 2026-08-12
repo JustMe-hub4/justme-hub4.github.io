@@ -38,10 +38,10 @@ app.add_middleware(
 # ------------------------------
 # Supabase & Stripe config
 # ------------------------------
-SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_URL = os.getenv("SUPABASE_POOLER_URL", os.getenv("SUPABASE_URL"))
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise RuntimeError("SUPABASE_URL and SUPABASE_KEY must be set")
+    raise RuntimeError("SUPABASE_URL/SUPABASE_POOLER_URL and SUPABASE_KEY must be set")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")
