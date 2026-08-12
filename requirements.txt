@@ -7,3 +7,4 @@ python-dotenv
 stripe
 pydantic
 httpx
+sentry-sdk>=2.0.0

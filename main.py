@@ -1,5 +1,8 @@
 import os
 import logging
+import sentry_sdk
+from sentry_sdk.integrations.starlette import StarletteIntegration
+from sentry_sdk.integrations.fastapi import FastApiIntegration
 import uuid
 import hashlib
 import secrets
@@ -26,6 +29,19 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("fhir-interop")
 
+# Optional Sentry error tracking
+if os.getenv("SENTRY_DSN"):
+    sentry_sdk.init(
+        dsn=os.getenv("SENTRY_DSN"),
+        integrations=[
+            StarletteIntegration(),
+            FastApiIntegration(),
+        ],
+        traces_sample_rate=1.0,
+        send_default_pii=False,
+    )
+
+
 app = FastAPI(title="FHIR Interop Engine", version="4.0.0")
 
 app.add_middleware(
@@ -45,6 +61,7 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")
+ADMIN_CRON_SECRET = os.getenv("ADMIN_CRON_SECRET", os.getenv("ADMIN_KEY", ""))
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "sk_test_...")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_...")
 stripe.api_key = STRIPE_SECRET_KEY
@@ -221,8 +238,8 @@ async def translate(request: Request):
 
 @app.post("/admin/cleanup")
 async def cleanup_logs(request: Request):
-    admin_key = request.headers.get("X-Admin-Key")
-    if not admin_key or admin_key != ADMIN_KEY:
+    admin_secret = request.headers.get("X-ADMIN-CRON-SECRET")
+    if not admin_secret or admin_secret != ADMIN_CRON_SECRET:
         raise HTTPException(status_code=401, detail="Unauthorized")
     try:
         supabase.table("translation_logs").delete().lt("created_at", "now() - interval '7 days'").execute()
