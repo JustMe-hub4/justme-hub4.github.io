@@ -89,7 +89,21 @@
       .mobile-logout-fab { display: flex; align-items: center; justify-content: center; position: fixed; top: 16px; right: 16px; z-index: 3000; width: 44px; height: 44px; border-radius: 50%; background: var(--surface-elevated); color: var(--error); border: 1px solid var(--border); }
     }
     .mobile-logout-fab svg { width: 20px; height: 20px; }
-  </style>
+  
+    /* Dashboard declutter */
+    .card { padding: 16px; margin-bottom: 16px; }
+    #tab-dashboard .card h2 { font-size: 20px; margin-bottom: 8px; }
+    .grid-2 { gap: 16px; }
+    #tab-dashboard .credit-balance-display { font-size: 1.5rem; }
+    #success-rate, #total-translations, #successful-translations, #failed-translations {
+      font-size: 18px;
+    }
+    #usage-chart { min-height: 180px; max-height: 250px; }
+    /* Hide Get Started card by default; show only when no translations */
+    #tab-dashboard .card:last-child { display: none; }
+    .show-get-started #tab-dashboard .card:last-child { display: block; }
+
+</style>
 </head>
 <body>
   <!-- Login -->
@@ -404,6 +418,10 @@ PID|1||123456||DOE^JOHN</textarea>
 
     async function fetchProfile() {
       try {
+        // Ensure we have a fresh session token
+        const { data: { session: freshSession } } = await supabaseClient.auth.getSession();
+        if (!freshSession) throw new Error('No active session');
+        session = freshSession;
         const res = await fetch(`${API_BASE}/portal/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const d = await res.json();
@@ -484,6 +502,13 @@ PID|1||123456||DOE^JOHN</textarea>
       if (res.ok) { const d = await res.json(); dailyUsage = d.daily_usage || {}; renderUsageChart(); }
     }
     function renderUsageChart() {
+      const totalTranslations = Object.values(dailyUsage).reduce((a, b) => a + b, 0);
+      const dashboard = document.getElementById('tab-dashboard');
+      if (dashboard) {
+        if (totalTranslations === 0) dashboard.classList.add('show-get-started');
+        else dashboard.classList.remove('show-get-started');
+      }
+
       const ctx = document.getElementById('usage-chart');
       if (!ctx) return;
       if (window.chart) window.chart.destroy();
