@@ -106,6 +106,35 @@
       .logout-mobile { display: block; }
     }
 
+
+    /* Fix overlapping and z-index issues on mobile */
+    .main {
+      position: relative;
+      z-index: 1;
+      pointer-events: auto;
+    }
+    .modal-overlay {
+      z-index: 9999;
+      pointer-events: auto;
+    }
+    .toast-container {
+      z-index: 10000;
+      pointer-events: none;
+    }
+    @media (max-width: 768px) {
+      .main {
+        padding-bottom: 80px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .sidebar {
+        z-index: 2000;
+        pointer-events: auto;
+      }
+      .desktop-logout { display: none; }
+      .logout-mobile { display: block; }
+    }
+
 </style>
 </head>
 <body>
@@ -396,9 +425,11 @@ PID|1||123456||DOE^JOHN</textarea>
     }
 
     async function fetchProfile() {
-      showSpinner('credit-spinner');
-      const res = await fetch(`${API_BASE}/portal/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-      if (res.ok) {
+      try {
+        const res = await fetch(`${API_BASE}/portal/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
         const d = await res.json();
         credits = d.credits_remaining;
         if (d.is_new_key) {
@@ -411,6 +442,11 @@ PID|1||123456||DOE^JOHN</textarea>
         }
         updateCreditDisplay();
         updateApiKeyDisplay();
+        // Populate explorer input with key if available
+        populateExplorerKey();
+      } catch (e) {
+        console.error('fetchProfile error:', e);
+        showToast('Error loading user data', 'error');
       }
     }
 
@@ -430,6 +466,16 @@ PID|1||123456||DOE^JOHN</textarea>
         el.style.color = 'var(--text)';
         el.textContent = credits.toLocaleString();
         if (warning) warning.innerHTML = '';
+      }
+    }
+
+    
+    function populateExplorerKey() {
+      const explorerKeyInput = document.getElementById('explorer-api-key');
+      if (explorerKeyInput && currentApiKey && currentApiKey !== '********') {
+        explorerKeyInput.value = currentApiKey;
+      } else if (explorerKeyInput) {
+        explorerKeyInput.placeholder = 'API key is hidden. Paste it here.';
       }
     }
 
