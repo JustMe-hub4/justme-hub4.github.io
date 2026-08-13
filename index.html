@@ -206,7 +206,7 @@
       </div>
       <div class="main">
         <div id="tab-dashboard" class="tab-content active">
-          <h2>Good morning, developer.</h2>
+          <h2 id="greeting">Good morning, developer.</h2>
           <div class="grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:24px;">
             <div class="card" style="border-color: var(--primary);">
               <strong>Available Credits</strong>
@@ -449,7 +449,19 @@ PID|1||123456||DOE^JOHN</textarea>
 
     loginBtn.onclick = magicLinkLogin;
 
+    
+    function updateGreeting() {
+      const hour = new Date().getHours();
+      const greetingEl = document.getElementById('greeting');
+      if (!greetingEl) return;
+      let greeting = 'Good morning';
+      if (hour >= 12 && hour < 17) greeting = 'Good afternoon';
+      else if (hour >= 17) greeting = 'Good evening';
+      greetingEl.textContent = `${greeting}, developer.`;
+    }
+
     function showDashboard() {
+      updateGreeting();
       document.getElementById('login-container').classList.add('hidden');
       document.getElementById('dashboard-container').classList.remove('hidden');
       document.getElementById('settings-email').textContent = session.user.email;
