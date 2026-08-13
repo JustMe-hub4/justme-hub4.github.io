@@ -73,21 +73,7 @@
     .modal-box { background: var(--surface); border-radius: 12px; padding: 30px; width: 400px; border: 1px solid var(--border); }
 
     /* Mobile */
-    @media (max-width: 768px) {
-      .app { flex-direction: column; }
-      .sidebar { position: fixed; bottom: 0; left: 0; right: 0; width: 100%; height: 56px; flex-direction: row; align-items: center; justify-content: space-around; padding: 0 8px; border-right: none; border-top: 1px solid var(--border); z-index: 2000; }
-      .sidebar h2 { display: none; }
-      .sidebar nav { display: flex; width: 100%; justify-content: space-around; margin: 0; }
-      .sidebar a { margin: 0; padding: 8px; font-size: 12px; }
-      .desktop-logout { display: none; }
-      .logout-mobile { display: block; color: var(--error); }
-      .main { padding: 12px 12px 80px; }
-      .grid-2 { grid-template-columns: 1fr; }
-      .card { padding: 16px; margin-bottom: 12px; }
-      .btn-primary, .btn-secondary { width: 100%; }
-      /* floating logout */
-      .mobile-logout-fab { display: flex; align-items: center; justify-content: center; position: fixed; top: 16px; right: 16px; z-index: 3000; width: 44px; height: 44px; border-radius: 50%; background: var(--surface-elevated); color: var(--error); border: 1px solid var(--border); }
-    }
+    
     .mobile-logout-fab svg { width: 20px; height: 20px; }
   
     /* Dashboard declutter */
@@ -103,9 +89,112 @@
     #tab-dashboard .card:last-child { display: none; }
     .show-get-started #tab-dashboard .card:last-child { display: block; }
 
+
+  /* Mobile-first layout */
+  @media (max-width: 768px) {
+    /* Hide sidebar and show header/bottom nav */
+    .sidebar { display: none; }
+    .mobile-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .hamburger {
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 24px;
+    }
+    .mobile-drawer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 80%;
+      max-width: 300px;
+      background: var(--surface);
+      z-index: 4000;
+      padding: 20px;
+      overflow-y: auto;
+      transform: translateX(-100%);
+      transition: transform 0.3s;
+    }
+    .mobile-drawer.open { transform: translateX(0); }
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .drawer-footer { margin-top: 24px; color: var(--success); }
+    .mobile-bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 56px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      z-index: 2000;
+    }
+    .mobile-bottom-nav a { color: var(--text-muted); text-decoration: none; font-size: 12px; }
+    .mobile-bottom-nav a.active { color: var(--primary); }
+    .main { padding-bottom: 80px; }
+    .card { padding: 16px; margin-bottom: 12px; }
+    .grid-2 { grid-template-columns: 1fr; gap: 12px; }
+    .btn { width: 100%; }
+    .flex-row { flex-wrap: wrap; }
+    /* Buttons full width on mobile */
+    .key-display { font-size: 13px; }
+    .modal-overlay { align-items: flex-end; }
+    .modal-box { width: 100%; border-radius: 12px 12px 0 0; }
+    /* Invoice cards */
+    #invoice-list br { display: none; }
+    #invoice-list { display: flex; flex-direction: column; gap: 8px; }
+    /* Explorer stacked */
+    #tab-explorer textarea { font-size: 13px; }
+    /* Hide health card and get started on mobile for first login simplicity */
+    #tab-dashboard .card:nth-child(2) { display: none; } /* health card */
+    #tab-dashboard .card:last-child { display: block; } /* get started */
+  }
+
+  @media (min-width: 769px) {
+    .mobile-header, .mobile-drawer, .mobile-bottom-nav { display: none; }
+  }
+
 </style>
 </head>
 <body>
+  <!-- Mobile Header (hamburger) -->
+  <div class="mobile-header">
+    <span>◈ FHIR INTEROP</span>
+    <button class="hamburger" onclick="toggleDrawer()">☰</button>
+  </div>
+
+  <!-- Mobile Drawer -->
+  <div id="mobile-drawer" class="mobile-drawer hidden">
+    <div class="drawer-header">
+      <span>◈ FHIR INTEROP</span>
+      <button onclick="toggleDrawer()">×</button>
+    </div>
+    <nav>
+      <a href="#" onclick="switchTab('dashboard'); toggleDrawer();">◉ Dashboard</a>
+      <a href="#" onclick="switchTab('usage'); toggleDrawer();">◇ Usage</a>
+      <a href="#" onclick="switchTab('billing'); toggleDrawer();">$ Billing</a>
+      <a href="#" onclick="switchTab('docs'); toggleDrawer();">⌘ API Docs</a>
+      <a href="#" onclick="switchTab('explorer'); toggleDrawer();">◈ API Explorer</a>
+      <a href="#" onclick="switchTab('settings'); toggleDrawer();">⚙ Settings</a>
+      <a href="#" onclick="showLogoutModal(); toggleDrawer();">↪ Logout</a>
+    </nav>
+    <div class="drawer-footer">● API Online</div>
+  </div>
+
   <!-- Login -->
   <div id="login-container">
     <div class="login-card">
@@ -277,7 +366,16 @@ PID|1||123456||DOE^JOHN</textarea>
   </button>
 
   <!-- Toast Container -->
-  <div id="toast-container" class="toast-container"></div>
+  
+  <!-- Mobile Bottom Nav -->
+  <div class="mobile-bottom-nav">
+    <a href="#" class="active" onclick="switchTab('dashboard')">Home</a>
+    <a href="#" onclick="switchTab('usage')">Usage</a>
+    <a href="#" onclick="switchTab('billing')">Billing</a>
+    <a href="#" onclick="toggleDrawer()">More</a>
+  </div>
+
+<div id="toast-container" class="toast-container"></div>
 
   <script>
     const SUPABASE_URL = 'https://lhgfolrupmsklrccirpj.supabase.co';
@@ -293,6 +391,12 @@ PID|1||123456||DOE^JOHN</textarea>
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let stripe = typeof Stripe !== 'undefined' ? Stripe(STRIPE_KEY) : null;
     let session = null, currentApiKey = '', apiKeyRevealed = false, credits = 0, dailyUsage = {}, invoices = [];
+
+    
+  function toggleDrawer() {
+    const drawer = document.getElementById('mobile-drawer');
+    if (drawer) drawer.classList.toggle('open');
+  }
 
     function showToast(msg, type = 'info') {
       const container = document.getElementById('toast-container');
@@ -310,7 +414,9 @@ PID|1||123456||DOE^JOHN</textarea>
       let g = 'Good morning';
       if (hour >= 12 && hour < 17) g = 'Good afternoon';
       else if (hour >= 17) g = 'Good evening';
-      el.textContent = `${g}, developer.`;
+      const email = session?.user?.email || '';
+      const firstName = email.split('@')[0];
+      el.textContent = `${g}, ${firstName || 'developer'}.`;
     }
 
     async function socialLogin(provider) {
