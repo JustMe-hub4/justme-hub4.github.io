@@ -27,7 +27,7 @@
     .btn-danger { background: var(--error); color: white; }
     .toggle-link { color: var(--primary); font-size: 13px; cursor: pointer; margin-top: 12px; display: block; }
     .app { display: flex; min-height: 100vh; }
-    .sidebar { width: 200px; background: var(--surface); padding: 24px; border-right: 1px solid var(--border); }
+    .sidebar { width: 200px; background: #07111F; padding: 24px; border-right: 1px solid var(--border); }
     .sidebar h2 { color: var(--primary); margin-bottom: 24px; }
     .sidebar a { display: block; padding: 10px; color: var(--text-muted); text-decoration: none; border-radius: 6px; margin-bottom: 8px; font-size: 14px; }
     .sidebar a:hover, .sidebar a.active { background: var(--surface-elevated); color: var(--text); }
@@ -165,6 +165,12 @@
       }
     }
 
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 768px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+
 </style>
 </head>
 <body>
@@ -200,6 +206,26 @@
       </div>
       <div class="main">
         <div id="tab-dashboard" class="tab-content active">
+          <h2>Good morning, developer.</h2>
+          <div class="grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:24px;">
+            <div class="card" style="border-color: var(--primary);">
+              <strong>Available Credits</strong>
+              <div style="font-size:2rem; font-weight:700;" id="credit-balance">0</div>
+              <div id="credit-warning" style="margin-top:8px;"></div>
+              <button class="btn btn-primary" onclick="switchTab('billing')" style="margin-top:12px;">Buy Credits</button>
+            </div>
+            <div class="card" style="border-color: var(--violet);">
+              <strong>Translation Health</strong>
+              <div style="display:flex; gap:16px; margin-top:8px;">
+                <div><span style="font-size:24px; font-weight:700;" id="success-rate">--</span><br><span style="color:var(--text-muted)">Success rate</span></div>
+                <div><span style="font-size:24px; font-weight:700;" id="total-translations">0</span><br><span style="color:var(--text-muted)">Total</span></div>
+                <div><span style="font-size:24px; font-weight:700; color:var(--success);" id="successful-translations">0</span><br><span style="color:var(--text-muted)">Successful</span></div>
+                <div><span style="font-size:24px; font-weight:700; color:var(--error);" id="failed-translations">0</span><br><span style="color:var(--text-muted)">Failed</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="border-color: var(--primary);">
+            <strong>API Key</strong>
           <h2>Dashboard</h2>
           <div class="card" style="position:relative;">
             <div id="credit-spinner" class="spinner-overlay hidden"><div class="spinner"></div></div>
@@ -225,6 +251,11 @@
               <canvas id="usage-chart" style="min-height:250px; max-height:400px; margin-top:10px;"></canvas>
             </div>
           </div>
+        </div>
+        <div class="card">
+          <strong>Get Started</strong>
+          <p>① Copy API key → ② Send HL7 → ③ Receive FHIR</p>
+          <button class="btn btn-primary" onclick="switchTab('docs')">Get Started</button>
         </div>
         <div id="tab-usage" class="tab-content hidden">
           <h2>Usage</h2>
