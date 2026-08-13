@@ -198,6 +198,21 @@
       }
     }
 
+
+    /* Cleaner mobile dashboard */
+    @media (max-width: 480px) {
+      .main { padding: 8px; }
+      .card { padding: 12px; margin-bottom: 10px; }
+      .card h2 { font-size: 18px; }
+      .grid-2 { grid-template-columns: 1fr; gap: 10px; }
+      .credit-balance-display { font-size: 1.3rem; }
+      #usage-chart { min-height: 150px; max-height: 200px; }
+      /* Hide Get Started card on very small screens to reduce clutter */
+      #tab-dashboard .card:last-child { display: none; }
+      /* Make buttons full width for easier tapping */
+      .card .btn { width: 100%; margin-bottom: 4px; }
+    }
+
 </style>
 </head>
 <body>
@@ -237,7 +252,7 @@
           <div class="grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:24px;">
             <div class="card" style="border-color: var(--primary);">
               <strong>Available Credits</strong>
-              <div style="font-size:2rem; font-weight:700;" id="credit-balance">0</div>
+              <div style="font-size:2rem; font-weight:700;" class="credit-balance-display">0</div>
               <div id="credit-warning" style="margin-top:8px;"></div>
               <button class="btn btn-primary" onclick="switchTab('billing')" style="margin-top:12px;">Buy Credits</button>
             </div>
@@ -257,7 +272,7 @@
           <div class="card" style="position:relative;">
             <div id="credit-spinner" class="spinner-overlay hidden"><div class="spinner"></div></div>
             <strong>Available Credits</strong>
-            <div style="font-size:2rem; font-weight:700;" id="credit-balance">0</div>
+            <div style="font-size:2rem; font-weight:700;" class="credit-balance-display">0</div>
             <div id="credit-warning" style="margin-top:8px;"></div>
             <button class="btn btn-primary" onclick="switchTab('billing')" style="margin-top:12px;">Buy Credits</button>
           </div>
@@ -547,14 +562,11 @@ PID|1||123456||DOE^JOHN</textarea>
       document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
       const link = document.querySelector(`.sidebar a[onclick="switchTab('${tab}')"]`);
       if (link) link.classList.add('active');
-      if (tab === 'usage') { setTimeout(fetchUsage, 200); }
-      if (tab === 'billing') { fetchInvoices(); }
-      if (tab === 'dashboard') { fetchProfile(); fetchUsage(); fetchInvoices();
-      setTimeout(() => {
-        hideSpinner('credit-spinner');
-        hideSpinner('usage-spinner');
-        hideSpinner('invoice-spinner');
-      }, 2000); }
+      if (tab === 'usage') { fetchUsage(); }
+      if (tab === 'billing') { fetchProfile(); fetchInvoices(); }
+      if (tab === 'dashboard') { fetchProfile(); fetchUsage(); fetchInvoices(); }
+      if (tab === 'settings') { fetchProfile(); }
+      if (tab === 'explorer') { populateExplorerKey(); }, 2000); }
     }
 
     async function fetchProfile() {
