@@ -147,10 +147,10 @@
       <button id="btn-login" class="btn btn-primary" style="width:100%; margin-top:12px;">Sign In / Sign Up</button>
       <p id="login-msg" style="color:var(--text-muted); margin-top:12px;"></p>
       <span class="toggle-link" id="toggle-auth-mode">Or use password</span>
-      <button onclick="supabaseClient.auth.signInWithOAuth({ provider: 'google' })" class="btn btn-secondary" style="margin-top:12px; width:100%;">Continue with Google</button>
-      <button onclick="supabaseClient.auth.signInWithOAuth({ provider: 'github' })" class="btn btn-secondary" style="margin-top:8px; width:100%;">Continue with GitHub</button>
-      <button onclick="supabaseClient.auth.signInWithOAuth({ provider: 'linkedin' })" class="btn btn-secondary" style="margin-top:8px; width:100%;">Continue with LinkedIn</button>
-      <button onclick="supabaseClient.auth.signInWithOAuth({ provider: 'facebook' })" class="btn btn-secondary" style="margin-top:8px; width:100%;">Continue with Facebook</button>
+      <button onclick="socialLogin('google')" class="btn btn-secondary" style="margin-top:12px; width:100%;">Continue with Google</button>
+      <button onclick="socialLogin('github')" class="btn btn-secondary" style="margin-top:8px; width:100%;">Continue with GitHub</button>
+      <button onclick="socialLogin('linkedin')" class="btn btn-secondary" style="margin-top:8px; width:100%;">Continue with LinkedIn</button>
+      <button onclick="socialLogin('facebook')" class="btn btn-secondary" style="margin-top:8px; width:100%;">Continue with Facebook</button>
     </div>
   </div>
 
@@ -303,6 +303,19 @@ PID|1||123456||DOE^JOHN</textarea>
       if (el) el.classList.add('hidden');
     }
 
+    
+    async function socialLogin(provider) {
+      try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({ provider });
+        if (error) {
+          showToast(error.message, 'error');
+        }
+      } catch (e) {
+        console.error('OAuth error:', e);
+        showToast('OAuth sign-in failed: ' + e.message, 'error');
+      }
+    }
+
     function showToast(msg, type = 'info') {
       const container = document.getElementById('toast-container');
       const toast = document.createElement('div');
@@ -340,6 +353,10 @@ PID|1||123456||DOE^JOHN</textarea>
     async function passwordLogin() {
       const email = document.getElementById('login-email').value;
       const password = pwField.value;
+      if (!email || !password) {
+        showToast('Please enter both email and password.', 'error');
+        return;
+      }
       loginBtn.disabled = true; loginBtn.textContent = 'Signing in...';
       const { error: signInError } = await supabaseClient.auth.signInWithPassword({ email, password });
       if (signInError) {
@@ -347,13 +364,14 @@ PID|1||123456||DOE^JOHN</textarea>
           loginBtn.textContent = 'Creating account...';
           const { error: signUpError } = await supabaseClient.auth.signUp({ email, password });
           if (signUpError) {
-            document.getElementById('login-msg').textContent = signUpError.message;
+            showToast(signUpError.message, 'error');
             loginBtn.disabled = false; loginBtn.textContent = 'Sign In';
           } else {
+            showToast('Account created! Signing in...', 'success');
             await supabaseClient.auth.signInWithPassword({ email, password });
           }
         } else {
-          document.getElementById('login-msg').textContent = signInError.message;
+          showToast(signInError.message, 'error');
           loginBtn.disabled = false; loginBtn.textContent = 'Sign In';
         }
       }
@@ -380,10 +398,14 @@ PID|1||123456||DOE^JOHN</textarea>
     }
 
     supabaseClient.auth.onAuthStateChange((event, authSession) => {
-      if (authSession) {
-        session = authSession;
-        showDashboard();
-      } else {
+      console.log('Auth event:', event, authSession);
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+        if (authSession) {
+          session = authSession;
+          showDashboard();
+        }
+      } else if (event === 'SIGNED_OUT') {
+        session = null;
         showLogin();
       }
     });
