@@ -113,7 +113,27 @@
 
     /* Code block */
     pre { background: var(--surface-elevated); padding: 12px; border-radius: 6px; overflow-x: auto; font-family: var(--mono); }
-  </style>
+  
+    /* Ensure mobile drawer opens */
+    @media (max-width: 1023px) {
+      .mobile-drawer {
+        display: block !important;
+        z-index: 9999 !important;
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 300px;
+        background: var(--surface);
+        transform: translateX(-100%);
+        transition: transform 0.3s;
+      }
+      .mobile-drawer.open {
+        transform: translateX(0) !important;
+      }
+    }
+
+</style>
 </head>
 <body>
   <!-- Mobile Drawer -->
@@ -138,7 +158,7 @@
     <a href="#" class="active" onclick="navigate('dashboard')">Home</a>
     <a href="#" onclick="navigate('usage')">Usage</a>
     <a href="#" onclick="navigate('billing')">Billing</a>
-    <a href="#" onclick="toggleDrawer()">More</a>
+    <a href="#" onclick="document.getElementById('mobile-drawer').classList.toggle('open'); return false;">More</a>
   </div>
 
   <!-- App Shell -->
