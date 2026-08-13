@@ -83,22 +83,11 @@
     .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
 
     /* Mobile */
-    .mobile-header { display: none; }
     .mobile-drawer { display: none; }
     .mobile-bottom-nav { display: none; }
 
     @media (max-width: 1023px) {
-      .sidebar { display: none; }
-      .mobile-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 12px 16px;
-        background: var(--surface);
-        border-bottom: 1px solid var(--border);
-      }
-      .hamburger { background: none; border: none; color: var(--text); font-size: 24px; }
-      .mobile-drawer {
+      .sidebar { display: none; }      .mobile-drawer {
         position: fixed;
         top: 0; left: 0; bottom: 0;
         width: 300px;
@@ -135,12 +124,6 @@
   </style>
 </head>
 <body>
-  <!-- Mobile Header -->
-  <div class="mobile-header">
-    <span>◈ FHIR INTEROP</span>
-    <button class="hamburger" onclick="toggleDrawer()">☰</button>
-  </div>
-
   <!-- Mobile Drawer -->
   <div id="mobile-drawer" class="mobile-drawer">
     <div class="drawer-header">
@@ -516,7 +499,14 @@ PID|1||123456||DOE^JOHN</textarea>
     }
 
     function toggleKey() { apiKeyRevealed = !apiKeyRevealed; updateApiKeyDisplay(); }
-    function copyKey() { navigator.clipboard.writeText(currentApiKey); showToast('API key copied!', 'success'); }
+    function copyKey() {
+      if (!currentApiKey || currentApiKey === '********') {
+        showToast('Please reveal the key first (click Show) or rotate to see it.', 'error');
+        return;
+      }
+      navigator.clipboard.writeText(currentApiKey);
+      showToast('API key copied!', 'success');
+    }
     function populateExplorerKey() {
       const input = document.getElementById('explorer-api-key');
       if (input) {
