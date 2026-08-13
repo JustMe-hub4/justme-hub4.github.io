@@ -452,11 +452,17 @@ PID|1||123456||DOE^JOHN</textarea>
 
     async function fetchProfile() {
       try {
-        const { data: { session: freshSession } } = await supabaseClient.auth.getSession();
-        if (!freshSession) throw new Error('No active session');
-        session = freshSession;
+        if (!session || !session.access_token) {
+          throw new Error('No active session');
+        }
+        console.log('Fetching profile with token:', session.access_token.substring(0, 20) + '...');
         const res = await fetch(`${API_BASE}/portal/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        console.log('Profile response:', res.status);
+        if (!res.ok) {
+          const errText = await res.text();
+          console.error('Profile error body:', errText);
+          throw new Error(`HTTP ${res.status} - ${errText}`);
+        }
         const d = await res.json();
         credits = d.credits_remaining;
         if (d.is_new_key) { currentApiKey = d.api_key; apiKeyRevealed = true; showToast('New API key generated! Copy it now.', 'success'); }
