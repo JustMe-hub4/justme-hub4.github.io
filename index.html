@@ -135,6 +135,31 @@
       .logout-mobile { display: block; }
     }
 
+
+    /* Mobile floating logout button */
+    .mobile-logout-fab {
+      display: none;
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 3000;
+      background: var(--surface-elevated);
+      color: var(--error);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      width: 44px;
+      height: 44px;
+      font-size: 20px;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    @media (max-width: 768px) {
+      .mobile-logout-fab {
+        display: block;
+      }
+    }
+
 </style>
 </head>
 <body>
@@ -165,7 +190,6 @@
           <a href="#" onclick="switchTab('docs')">📘 Docs</a>
           <a href="#" onclick="switchTab('explorer')">🧪 Explorer</a>
           <a href="#" onclick="switchTab('settings')">⚙ Settings</a>
-          <a href="#" class="logout-mobile" onclick="showLogoutModal()">↪ Logout</a>
         </nav>
         <button onclick="showLogoutModal()" class="btn btn-danger desktop-logout" style="width:100%; margin-top:24px;">Sign Out</button>
       </div>
@@ -276,7 +300,13 @@ PID|1||123456||DOE^JOHN</textarea>
     </div>
   </div>
 
-  <div id="toast-container" style="position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:2000;"></div>
+  
+  <!-- Mobile floating logout button -->
+  <button id="mobile-logout-fab" onclick="showLogoutModal()" class="mobile-logout-fab" title="Sign Out">
+    ⏻
+  </button>
+
+<div id="toast-container" style="position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:2000;"></div>
 
   <script>
     const SUPABASE_URL = 'https://lhgfolrupmsklrccirpj.supabase.co';
