@@ -452,27 +452,58 @@ PID|1||123456||DOE^JOHN</textarea>
 
     async function fetchProfile() {
       try {
-        if (!session || !session.access_token) {
-          throw new Error('No active session');
+        // Ensure we have a session; if not, throw to login
+        if (!session) {
+          const { data: { session: fresh } } = await supabaseClient.auth.getSession();
+          if (!fresh) throw new Error('No session');
+          session = fresh;
         }
-        console.log('Fetching profile with token:', session.access_token.substring(0, 20) + '...');
-        const res = await fetch(`${API_BASE}/portal/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-        console.log('Profile response:', res.status);
+        let accessToken = session.access_token;
+        console.log('Using token:', accessToken.substring(0, 20) + '...');
+        let res = await fetch(`${API_BASE}/portal/me`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (res.status === 401) {
+          // Token expired; try refresh
+          console.log('Token expired, attempting refresh...');
+          const { data: { session: refreshed }, error: refreshError } = await supabaseClient.auth.refreshSession();
+          if (refreshError || !refreshed) {
+            console.error('Refresh failed:', refreshError);
+            await supabaseClient.auth.signOut();
+            showLogin();
+            return;
+          }
+          session = refreshed;
+          accessToken = refreshed.access_token;
+          console.log('Token refreshed, retrying...');
+          res = await fetch(`${API_BASE}/portal/me`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          });
+        }
         if (!res.ok) {
           const errText = await res.text();
-          console.error('Profile error body:', errText);
           throw new Error(`HTTP ${res.status} - ${errText}`);
         }
         const d = await res.json();
         credits = d.credits_remaining;
-        if (d.is_new_key) { currentApiKey = d.api_key; apiKeyRevealed = true; showToast('New API key generated! Copy it now.', 'success'); }
-        else { currentApiKey = d.api_key; apiKeyRevealed = false; }
+        if (d.is_new_key) {
+          currentApiKey = d.api_key;
+          apiKeyRevealed = true;
+          showToast('New API key generated! Copy it now.', 'success');
+        } else {
+          currentApiKey = d.api_key;
+          apiKeyRevealed = false;
+        }
         updateCreditDisplay();
         updateApiKeyDisplay();
         populateExplorerKey();
       } catch (e) {
         console.error('fetchProfile error:', e);
         showToast('Error loading user data: ' + e.message, 'error');
+        // If no session, show login
+        if (e.message.includes('No session')) {
+          showLogin();
+        }
       }
     }
 
