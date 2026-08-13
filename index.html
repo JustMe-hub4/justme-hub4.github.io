@@ -12,226 +12,104 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://js.stripe.com/v3/"></script>
   <style>
-    :root { --bg:#07111F; --surface:#101D2D; --surface-elevated:#162438; --border:#1E334A; --primary:#16C7D9; --success:#22C55E; --warning:#F59E0B; --error:#EF4444; --text:#F8FAFC; --text-secondary:#CBD5E1; --text-muted:#94A3B8; }
+    :root {
+      --bg: #07111F; --surface: #101D2D; --surface-elevated: #162438; --border: #1E334A;
+      --primary: #16C7D9; --secondary: #6366F1; --violet: #8B5CF6;
+      --success: #22C55E; --warning: #F59E0B; --error: #EF4444;
+      --text: #F8FAFC; --text-secondary: #CBD5E1; --text-muted: #94A3B8;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); }
     button { cursor: pointer; font-family: inherit; }
     input, textarea { font-family: inherit; }
     .hidden { display: none !important; }
+
+    /* Login */
     #login-container { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
     .login-card { background: var(--surface); border-radius: 12px; padding: 40px; width: 400px; text-align: center; border: 1px solid var(--border); }
     .login-card input { width: 100%; padding: 10px; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 6px; color: var(--text); margin: 8px 0; }
-    .btn { padding: 10px 20px; border-radius: 6px; font-weight: 600; border: none; cursor: pointer; }
-    .btn-primary { background: var(--primary); color: #07111F; }
-    .btn-secondary { background: var(--surface-elevated); color: var(--text); border: 1px solid var(--border); }
+    .btn { padding: 10px 20px; border-radius: 6px; font-weight: 600; border: none; }
+    .btn-primary { background: var(--primary); color: #07111F; width: 100%; margin-top: 12px; }
+    .btn-secondary { background: var(--surface-elevated); color: var(--text); border: 1px solid var(--border); width: 100%; margin-top: 8px; }
     .btn-danger { background: var(--error); color: white; }
     .toggle-link { color: var(--primary); font-size: 13px; cursor: pointer; margin-top: 12px; display: block; }
+
+    /* App layout */
     .app { display: flex; min-height: 100vh; }
-    .sidebar { width: 200px; background: #07111F; padding: 24px; border-right: 1px solid var(--border); }
+    .sidebar { width: 200px; background: #07111F; padding: 24px; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
     .sidebar h2 { color: var(--primary); margin-bottom: 24px; }
+    .sidebar nav { flex: 1; }
     .sidebar a { display: block; padding: 10px; color: var(--text-muted); text-decoration: none; border-radius: 6px; margin-bottom: 8px; font-size: 14px; }
     .sidebar a:hover, .sidebar a.active { background: var(--surface-elevated); color: var(--text); }
     .sidebar a.active { color: var(--primary); }
+    .desktop-logout { width: 100%; margin-top: auto; }
+    .logout-mobile { display: none; }
     .main { flex: 1; padding: 24px; }
-    .card { background: var(--surface); border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--border); }
+
+    /* Cards */
+    .card { background: var(--surface); border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--border); position: relative; }
+    .card h2 { font-size: 24px; font-weight: 600; margin-bottom: 12px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+    /* API key */
     .key-display { font-family: monospace; background: var(--surface-elevated); padding: 10px; border-radius: 6px; word-break: break-all; }
-    .flex-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
-    canvas { max-height: 200px; }
+    .flex-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+
+    /* Chart */
+    .chart-wrapper { position: relative; }
+    canvas { max-width: 100%; }
+    .chart-empty-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-muted); pointer-events: none; }
+
+    /* Toast */
+    .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 10000; display: flex; flex-direction: column; gap: 8px; }
     .toast { padding: 12px 20px; border-radius: 8px; font-weight: 500; animation: slideIn 0.3s; }
     .toast-success { background: var(--success); }
     .toast-error { background: var(--error); }
     .toast-info { background: var(--primary); color: #07111F; }
     @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+
+    /* Modals */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 9999; }
     .modal-box { background: var(--surface); border-radius: 12px; padding: 30px; width: 400px; border: 1px solid var(--border); }
-    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 8px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-  
-    .spinner-overlay { position: absolute; top:0; left:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center; background: rgba(16,29,45,0.7); z-index:10; }
-    .spinner { width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.2); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
 
-
-    /* Mobile Responsive (bottom nav) */
+    /* Mobile */
     @media (max-width: 768px) {
-      .app { display: block; }
-      .sidebar {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        width: 100%;
-        height: 56px;
-        display: flex;
-        align-items: center;
-        justify-content: space-around;
-        background: var(--surface);
-        border-top: 1px solid var(--border);
-        z-index: 1000;
-      }
+      .app { flex-direction: column; }
+      .sidebar { position: fixed; bottom: 0; left: 0; right: 0; width: 100%; height: 56px; flex-direction: row; align-items: center; justify-content: space-around; padding: 0 8px; border-right: none; border-top: 1px solid var(--border); z-index: 2000; }
       .sidebar h2 { display: none; }
-      .sidebar nav { display: flex; width: 100%; justify-content: space-around; margin: 0; padding: 0; }
-      .sidebar a { margin: 0; padding: 8px 10px; font-size: 12px; }
-      .sidebar a.logout-mobile { color: var(--error); }
-      .main {
-        padding-bottom: 80px;
-        max-height: calc(100vh - 56px);
-        overflow-y: auto;
-      }
-      #dashboard-container {
-        height: 100vh;
-        overflow-y: auto;
-      }
-    }
-
-
-    .chart-empty-overlay {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--text-muted);
-      font-size: 15px;
-      pointer-events: none;
-    }
-    .chart-wrapper { position: relative; }
-
-
-    .desktop-logout { display: block; }
-    .logout-mobile { display: none; }
-
-    @media (max-width: 768px) {
+      .sidebar nav { display: flex; width: 100%; justify-content: space-around; margin: 0; }
+      .sidebar a { margin: 0; padding: 8px; font-size: 12px; }
       .desktop-logout { display: none; }
-      .logout-mobile { display: block; }
-    }
-
-
-    /* Fix overlapping and z-index issues on mobile */
-    .main {
-      position: relative;
-      z-index: 1;
-      pointer-events: auto;
-    }
-    .modal-overlay {
-      z-index: 9999;
-      pointer-events: auto;
-    }
-    .toast-container {
-      z-index: 10000;
-      pointer-events: none;
-    }
-    @media (max-width: 768px) {
-      .main {
-        padding-bottom: 80px;
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
-      }
-      .sidebar {
-        z-index: 2000;
-        pointer-events: auto;
-      }
-      .desktop-logout { display: none; }
-      .logout-mobile { display: block; }
-    }
-
-
-    /* Mobile floating logout button */
-    .mobile-logout-fab {
-      display: none;
-      position: fixed;
-      top: 16px;
-      right: 16px;
-      z-index: 3000;
-      background: var(--surface-elevated);
-      color: var(--error);
-      border: 1px solid var(--border);
-      border-radius: 50%;
-      width: 44px;
-      height: 44px;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-      align-items: center;
-      justify-content: center;
-    }
-    .mobile-logout-fab svg {
-      display: block;
-      margin: auto;
-    }
-
-    @media (max-width: 768px) {
-      .mobile-logout-fab {
-        display: block;
-      }
-    }
-
-
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    @media (max-width: 768px) {
+      .logout-mobile { display: block; color: var(--error); }
+      .main { padding: 12px 12px 80px; }
       .grid-2 { grid-template-columns: 1fr; }
-    }
-
-
-    /* Mobile dashboard optimization */
-    @media (max-width: 480px) {
-      .main { padding: 12px; }
       .card { padding: 16px; margin-bottom: 12px; }
-      #credit-balance { font-size: 1.5rem; }
-      #success-rate, #total-translations, #successful-translations, #failed-translations {
-        font-size: 18px;
-      }
-      .grid-2 {
-        grid-template-columns: 1fr;
-        gap: 12px;
-      }
-      .card .flex-row {
-        flex-wrap: wrap;
-        gap: 6px;
-      }
-      #usage-chart {
-        min-height: 150px;
-        max-height: 250px;
-      }
-      /* Hide Get Started card on very small screens */
-      #tab-dashboard .card:last-child {
-        display: none;
-      }
+      .btn-primary, .btn-secondary { width: 100%; }
+      /* floating logout */
+      .mobile-logout-fab { display: flex; align-items: center; justify-content: center; position: fixed; top: 16px; right: 16px; z-index: 3000; width: 44px; height: 44px; border-radius: 50%; background: var(--surface-elevated); color: var(--error); border: 1px solid var(--border); }
     }
-
-
-    /* Cleaner mobile dashboard */
-    @media (max-width: 480px) {
-      .main { padding: 8px; }
-      .card { padding: 12px; margin-bottom: 10px; }
-      .card h2 { font-size: 18px; }
-      .grid-2 { grid-template-columns: 1fr; gap: 10px; }
-      .credit-balance-display { font-size: 1.3rem; }
-      #usage-chart { min-height: 150px; max-height: 200px; }
-      /* Hide Get Started card on very small screens to reduce clutter */
-      #tab-dashboard .card:last-child { display: none; }
-      /* Make buttons full width for easier tapping */
-      .card .btn { width: 100%; margin-bottom: 4px; }
-    }
-
-</style>
+    .mobile-logout-fab svg { width: 20px; height: 20px; }
+  </style>
 </head>
 <body>
+  <!-- Login -->
   <div id="login-container">
     <div class="login-card">
       <h1>FHIR Interop Engine</h1>
       <p style="color:var(--text-muted)">HL7v2 → FHIR R4 Translation</p>
       <input type="email" id="login-email" placeholder="Enter your email" autocomplete="email">
       <input type="password" id="login-password" placeholder="Password" style="display:none;">
-      <button id="btn-login" class="btn btn-primary" style="width:100%; margin-top:12px;">Sign In / Sign Up</button>
+      <button id="btn-login" class="btn btn-primary">Sign In / Sign Up</button>
       <p id="login-msg" style="color:var(--text-muted); margin-top:12px;"></p>
       <span class="toggle-link" id="toggle-auth-mode">Or use password</span>
-      <button onclick="socialLogin('google')" class="btn btn-secondary" style="margin-top:12px; width:100%;">Continue with Google</button>
-      <button onclick="socialLogin('github')" class="btn btn-secondary" style="margin-top:8px; width:100%;">Continue with GitHub</button>
-      <button onclick="socialLogin('linkedin')" class="btn btn-secondary" style="margin-top:8px; width:100%;">Continue with LinkedIn</button>
-      <button onclick="socialLogin('facebook')" class="btn btn-secondary" style="margin-top:8px; width:100%;">Continue with Facebook</button>
+      <button onclick="socialLogin('google')" class="btn btn-secondary">Continue with Google</button>
+      <button onclick="socialLogin('github')" class="btn btn-secondary">Continue with GitHub</button>
+      <button onclick="socialLogin('linkedin')" class="btn btn-secondary">Continue with LinkedIn</button>
+      <button onclick="socialLogin('facebook')" class="btn btn-secondary">Continue with Facebook</button>
     </div>
   </div>
 
+  <!-- Dashboard -->
   <div id="dashboard-container" class="hidden">
     <div class="app">
       <div class="sidebar">
@@ -243,18 +121,20 @@
           <a href="#" onclick="switchTab('docs')">📘 Docs</a>
           <a href="#" onclick="switchTab('explorer')">🧪 Explorer</a>
           <a href="#" onclick="switchTab('settings')">⚙ Settings</a>
+          <a href="#" class="logout-mobile" onclick="showLogoutModal()">↪ Logout</a>
         </nav>
-        <button onclick="showLogoutModal()" class="btn btn-danger desktop-logout" style="width:100%; margin-top:24px;">Sign Out</button>
+        <button onclick="showLogoutModal()" class="btn btn-danger desktop-logout">Sign Out</button>
       </div>
       <div class="main">
+        <!-- Dashboard Tab -->
         <div id="tab-dashboard" class="tab-content active">
           <h2 id="greeting">Good morning, developer.</h2>
-          <div class="grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:24px;">
+          <div class="grid-2">
             <div class="card" style="border-color: var(--primary);">
               <strong>Available Credits</strong>
               <div style="font-size:2rem; font-weight:700;" class="credit-balance-display">0</div>
               <div id="credit-warning" style="margin-top:8px;"></div>
-              <button class="btn btn-primary" onclick="switchTab('billing')" style="margin-top:12px;">Buy Credits</button>
+              <button class="btn btn-primary" onclick="switchTab('billing')">Buy Credits</button>
             </div>
             <div class="card" style="border-color: var(--violet);">
               <strong>Translation Health</strong>
@@ -265,16 +145,6 @@
                 <div><span style="font-size:24px; font-weight:700; color:var(--error);" id="failed-translations">0</span><br><span style="color:var(--text-muted)">Failed</span></div>
               </div>
             </div>
-          </div>
-          <div class="card" style="border-color: var(--primary);">
-            <strong>API Key</strong>
-          <h2>Dashboard</h2>
-          <div class="card" style="position:relative;">
-            <div id="credit-spinner" class="spinner-overlay hidden"><div class="spinner"></div></div>
-            <strong>Available Credits</strong>
-            <div style="font-size:2rem; font-weight:700;" class="credit-balance-display">0</div>
-            <div id="credit-warning" style="margin-top:8px;"></div>
-            <button class="btn btn-primary" onclick="switchTab('billing')" style="margin-top:12px;">Buy Credits</button>
           </div>
           <div class="card">
             <strong>API Key</strong>
@@ -287,61 +157,69 @@
           </div>
           <div class="card">
             <strong>Translations (Last 7 Days)</strong>
-            <div id="usage-spinner" class="spinner-overlay hidden"><div class="spinner"></div></div>
             <div class="chart-wrapper">
               <div id="usage-empty-state" class="chart-empty-overlay hidden">No translations yet</div>
               <canvas id="usage-chart" style="min-height:250px; max-height:400px; margin-top:10px;"></canvas>
             </div>
           </div>
+          <div class="card">
+            <strong>Get Started</strong>
+            <p>① Copy API key → ② Send HL7 → ③ Receive FHIR</p>
+            <button class="btn btn-primary" onclick="switchTab('docs')">Get Started</button>
+          </div>
         </div>
-        <div class="card">
-          <strong>Get Started</strong>
-          <p>① Copy API key → ② Send HL7 → ③ Receive FHIR</p>
-          <button class="btn btn-primary" onclick="switchTab('docs')">Get Started</button>
-        </div>
+
+        <!-- Usage Tab -->
         <div id="tab-usage" class="tab-content hidden">
           <h2>Usage</h2>
           <div class="card">
             <canvas id="usage-chart-2" style="min-height:250px; max-height:400px;"></canvas>
           </div>
         </div>
+
+        <!-- Billing Tab -->
         <div id="tab-billing" class="tab-content hidden">
-          <h2>Buy Credits</h2>
+          <h2>Billing</h2>
           <div class="card"><h3>Starter - 100 credits - $30</h3><button class="btn btn-primary" onclick="buyCredits('price_1U1xzUIUjoQtwpInIy0o6u1O')">Buy</button></div>
           <div class="card"><h3>Growth - 10,000 credits - $2,000</h3><button class="btn btn-primary" onclick="buyCredits('price_1U1xzUIUjoQtwpInNFq6TRCU')">Buy</button></div>
           <div class="card"><h3>Volume - 75,000 credits - $9,000</h3><button class="btn btn-primary" onclick="buyCredits('price_1U1xzUIUjoQtwpInL8G3EBZX')">Buy</button></div>
           <h3 style="margin-top:24px;">Invoice History</h3>
-          <div id="invoice-spinner" class="spinner-overlay hidden"><div class="spinner"></div></div>
-            <div id="invoice-list">No invoices yet.</div>
+          <div id="invoice-list">No invoices yet.</div>
         </div>
+
+        <!-- Docs Tab -->
         <div id="tab-docs" class="tab-content hidden">
           <h2>Quick Start</h2>
           <div class="card">
             <p>1. Copy your API key</p>
             <div class="key-display" id="doc-api-key">••••••••••••••••••••••••</div>
-            <button onclick="copyKey()" class="btn btn-secondary" style="margin-top:8px;">Copy</button>
-            <br/><br/>
+            <button onclick="copyKey()" class="btn btn-secondary">Copy</button>
+            <br><br>
             <p>2. Send a request</p>
-            <pre style="background:var(--surface-elevated); padding:12px; border-radius:6px; overflow-x:auto; font-size:13px;">
+            <pre style="background:var(--surface-elevated); padding:12px; border-radius:6px; overflow-x:auto;">
 curl -X POST https://quack-xzno.onrender.com/v1/translate \\
   -H "X-API-Key: <span id="doc-key-inline">YOUR_KEY</span>" \\
   -H "Content-Type: text/plain" \\
   --data-binary @message.hl7
             </pre>
-            <p style="color:var(--text-muted); margin-top:8px;">Include an optional <strong>X-Idempotency-Key</strong> header for safe retries.</p>
+            <p style="color:var(--text-muted);">Include an optional <strong>X-Idempotency-Key</strong> for safe retries.</p>
           </div>
         </div>
+
+        <!-- Explorer Tab -->
         <div id="tab-explorer" class="tab-content hidden">
           <h2>API Explorer</h2>
           <div class="card">
             <input type="text" id="explorer-api-key" placeholder="Paste your API key here if not auto-filled" style="width:100%; padding:10px; background:var(--surface-elevated); border:1px solid var(--border); border-radius:6px; color:var(--text); margin-bottom:8px;">
             <textarea id="explorer-hl7" style="width:100%; height:120px; background:var(--surface-elevated); border:1px solid var(--border); border-radius:6px; color:var(--text); padding:10px; font-family:monospace;">MSH|^~\&|LAB|HOSPITAL|APP|20260809120000||ADT^A01|MSG001|P|2.5
 PID|1||123456||DOE^JOHN</textarea>
-            <input id="explorer-idem" style="width:100%; padding:10px; background:var(--surface-elevated); border:1px solid var(--border); border-radius:6px; color:var(--text); margin-top:8px;" placeholder="Idempotency Key (optional)">
-            <button onclick="exploreTranslate()" class="btn btn-primary" style="margin-top:12px;">▶ Translate</button>
+            <input id="explorer-idem" placeholder="Idempotency Key (optional)" style="width:100%; padding:10px; background:var(--surface-elevated); border:1px solid var(--border); border-radius:6px; color:var(--text); margin-top:8px;">
+            <button onclick="exploreTranslate()" class="btn btn-primary">▶ Translate</button>
             <div id="explorer-response" style="margin-top:16px;"></div>
           </div>
         </div>
+
+        <!-- Settings Tab -->
         <div id="tab-settings" class="tab-content hidden">
           <h2>Settings</h2>
           <div class="card">
@@ -353,42 +231,39 @@ PID|1||123456||DOE^JOHN</textarea>
     </div>
   </div>
 
-  
+  <!-- Rotate Modal -->
+  <div id="rotate-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h3>Rotate API Key</h3>
+      <p>Your current key will be <strong>immediately deactivated</strong>.</p>
+      <p>Credits will be transferred to the new key.</p>
+      <div class="flex-row" style="justify-content:flex-end;">
+        <button class="btn btn-secondary" onclick="closeRotateModal()">Cancel</button>
+        <button class="btn btn-danger" onclick="rotateKey()">Rotate Key</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logout Modal -->
   <div id="logout-modal" class="modal-overlay hidden">
     <div class="modal-box">
       <h3>Sign Out</h3>
       <p>Are you sure you want to sign out?</p>
       <p class="muted">Your API key and credits will remain unchanged.</p>
-      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:20px;">
+      <div class="flex-row" style="justify-content:flex-end;">
         <button class="btn btn-secondary" onclick="closeLogoutModal()">Cancel</button>
         <button class="btn btn-danger" onclick="confirmSignOut()">Sign Out</button>
       </div>
     </div>
   </div>
 
-<div id="rotate-modal" class="modal-overlay hidden">
-    <div class="modal-box">
-      <h3>Rotate API Key</h3>
-      <p>Your current key will be <strong>immediately deactivated</strong>.</p>
-      <p>Credits will be transferred to the new key.</p>
-      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:20px;">
-        <button class="btn btn-secondary" onclick="closeRotateModal()">Cancel</button>
-        <button class="btn btn-danger" id="confirm-rotate-btn" onclick="rotateKey()">Rotate Key</button>
-      </div>
-    </div>
-  </div>
-
-  
-  <!-- Mobile floating logout button -->
-  <button id="mobile-logout-fab" onclick="showLogoutModal()" class="mobile-logout-fab" title="Sign Out">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-      <polyline points="16 17 21 12 16 7"></polyline>
-      <line x1="21" y1="12" x2="9" y2="12"></line>
-    </svg>
+  <!-- Floating Mobile Logout -->
+  <button id="mobile-logout-fab" class="mobile-logout-fab" onclick="showLogoutModal()" title="Sign Out">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
   </button>
 
-<div id="toast-container" style="position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:2000;"></div>
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
 
   <script>
     const SUPABASE_URL = 'https://lhgfolrupmsklrccirpj.supabase.co';
@@ -405,29 +280,6 @@ PID|1||123456||DOE^JOHN</textarea>
     let stripe = typeof Stripe !== 'undefined' ? Stripe(STRIPE_KEY) : null;
     let session = null, currentApiKey = '', apiKeyRevealed = false, credits = 0, dailyUsage = {}, invoices = [];
 
-    
-    function showSpinner(id) {
-      const el = document.getElementById(id);
-      if (el) el.classList.remove('hidden');
-    }
-    function hideSpinner(id) {
-      const el = document.getElementById(id);
-      if (el) el.classList.add('hidden');
-    }
-
-    
-    async function socialLogin(provider) {
-      try {
-        const { error } = await supabaseClient.auth.signInWithOAuth({ provider });
-        if (error) {
-          showToast(error.message, 'error');
-        }
-      } catch (e) {
-        console.error('OAuth error:', e);
-        showToast('OAuth sign-in failed: ' + e.message, 'error');
-      }
-    }
-
     function showToast(msg, type = 'info') {
       const container = document.getElementById('toast-container');
       const toast = document.createElement('div');
@@ -435,6 +287,26 @@ PID|1||123456||DOE^JOHN</textarea>
       toast.textContent = msg;
       container.appendChild(toast);
       setTimeout(() => toast.remove(), 4000);
+    }
+
+    function updateGreeting() {
+      const hour = new Date().getHours();
+      const el = document.getElementById('greeting');
+      if (!el) return;
+      let g = 'Good morning';
+      if (hour >= 12 && hour < 17) g = 'Good afternoon';
+      else if (hour >= 17) g = 'Good evening';
+      el.textContent = `${g}, developer.`;
+    }
+
+    async function socialLogin(provider) {
+      try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({ provider });
+        if (error) showToast(error.message, 'error');
+      } catch (e) {
+        console.error('OAuth error:', e);
+        showToast('OAuth sign-in failed: ' + e.message, 'error');
+      }
     }
 
     const toggleAuthLink = document.getElementById('toggle-auth-mode');
@@ -465,10 +337,7 @@ PID|1||123456||DOE^JOHN</textarea>
     async function passwordLogin() {
       const email = document.getElementById('login-email').value;
       const password = pwField.value;
-      if (!email || !password) {
-        showToast('Please enter both email and password.', 'error');
-        return;
-      }
+      if (!email || !password) { showToast('Email and password required', 'error'); return; }
       loginBtn.disabled = true; loginBtn.textContent = 'Signing in...';
       const { error: signInError } = await supabaseClient.auth.signInWithPassword({ email, password });
       if (signInError) {
@@ -491,17 +360,6 @@ PID|1||123456||DOE^JOHN</textarea>
 
     loginBtn.onclick = magicLinkLogin;
 
-    
-    function updateGreeting() {
-      const hour = new Date().getHours();
-      const greetingEl = document.getElementById('greeting');
-      if (!greetingEl) return;
-      let greeting = 'Good morning';
-      if (hour >= 12 && hour < 17) greeting = 'Good afternoon';
-      else if (hour >= 17) greeting = 'Good evening';
-      greetingEl.textContent = `${greeting}, developer.`;
-    }
-
     function showDashboard() {
       updateGreeting();
       document.getElementById('login-container').classList.add('hidden');
@@ -509,13 +367,7 @@ PID|1||123456||DOE^JOHN</textarea>
       document.getElementById('settings-email').textContent = session.user.email;
       document.getElementById('settings-joined').textContent = new Date(session.user.created_at).toLocaleDateString();
       fetchProfile(); fetchUsage(); fetchInvoices();
-      setTimeout(() => {
-        hideSpinner('credit-spinner');
-        hideSpinner('usage-spinner');
-        hideSpinner('invoice-spinner');
-      }, 2000);
     }
-
     function showLogin() {
       closeLogoutModal();
       document.getElementById('login-container').classList.remove('hidden');
@@ -523,36 +375,17 @@ PID|1||123456||DOE^JOHN</textarea>
     }
 
     supabaseClient.auth.onAuthStateChange((event, authSession) => {
-      console.log('Auth event:', event, authSession);
+      console.log('Auth event:', event);
       if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
-        if (authSession) {
-          session = authSession;
-          showDashboard();
-        }
+        if (authSession) { session = authSession; showDashboard(); }
       } else if (event === 'SIGNED_OUT') {
-        session = null;
-        closeLogoutModal();
-        showLogin();
+        session = null; closeLogoutModal(); showLogin();
       }
     });
 
     (async () => {
-      // Handle OAuth redirect (GitHub, Google, etc.)
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.has('code')) {
-        try {
-          await supabaseClient.auth.exchangeCodeForSession(urlParams.get('code'));
-        } catch (e) {
-          console.error('OAuth code exchange failed:', e);
-        }
-      }
-
-      // Get session after potential OAuth exchange
       const { data } = await supabaseClient.auth.getSession();
-      if (data.session) {
-        session = data.session;
-        showDashboard();
-      }
+      if (data.session) { session = data.session; showDashboard(); }
     })();
 
     function switchTab(tab) {
@@ -562,32 +395,23 @@ PID|1||123456||DOE^JOHN</textarea>
       document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
       const link = document.querySelector(`.sidebar a[onclick="switchTab('${tab}')"]`);
       if (link) link.classList.add('active');
-      if (tab === 'usage') { fetchUsage(); }
+      if (tab === 'usage') fetchUsage();
       if (tab === 'billing') { fetchProfile(); fetchInvoices(); }
       if (tab === 'dashboard') { fetchProfile(); fetchUsage(); fetchInvoices(); }
-      if (tab === 'settings') { fetchProfile(); }
-      if (tab === 'explorer') { populateExplorerKey(); }, 2000); }
+      if (tab === 'settings') fetchProfile();
+      if (tab === 'explorer') populateExplorerKey();
     }
 
     async function fetchProfile() {
       try {
         const res = await fetch(`${API_BASE}/portal/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const d = await res.json();
         credits = d.credits_remaining;
-        if (d.is_new_key) {
-          currentApiKey = d.api_key;
-          apiKeyRevealed = true;
-          showToast('New API key generated! Copy it now.', 'success');
-        } else {
-          currentApiKey = d.api_key; // "********"
-          apiKeyRevealed = false;
-        }
+        if (d.is_new_key) { currentApiKey = d.api_key; apiKeyRevealed = true; showToast('New API key generated! Copy it now.', 'success'); }
+        else { currentApiKey = d.api_key; apiKeyRevealed = false; }
         updateCreditDisplay();
         updateApiKeyDisplay();
-        // Populate explorer input with key if available
         populateExplorerKey();
       } catch (e) {
         console.error('fetchProfile error:', e);
@@ -596,31 +420,12 @@ PID|1||123456||DOE^JOHN</textarea>
     }
 
     function updateCreditDisplay() {
-      const el = document.getElementById('credit-balance');
+      document.querySelectorAll('.credit-balance-display').forEach(el => { el.textContent = credits.toLocaleString(); });
       const warning = document.getElementById('credit-warning');
-      if (!el) return;
-      if (credits < 10) {
-        el.style.color = '#EF4444';
-        el.textContent = '🔴 ' + credits.toLocaleString();
-        if (warning) warning.innerHTML = 'CREDITS ALMOST EMPTY';
-      } else if (credits < 100) {
-        el.style.color = '#F59E0B';
-        el.textContent = '⚠ ' + credits.toLocaleString();
-        if (warning) warning.innerHTML = 'Consider buying more credits.';
-      } else {
-        el.style.color = 'var(--text)';
-        el.textContent = credits.toLocaleString();
-        if (warning) warning.innerHTML = '';
-      }
-    }
-
-    
-    function populateExplorerKey() {
-      const explorerKeyInput = document.getElementById('explorer-api-key');
-      if (explorerKeyInput && currentApiKey && currentApiKey !== '********') {
-        explorerKeyInput.value = currentApiKey;
-      } else if (explorerKeyInput) {
-        explorerKeyInput.placeholder = 'API key is hidden. Paste it here.';
+      if (warning) {
+        if (credits < 10) warning.innerHTML = '<span style="color:var(--error)">🔴 Credits almost empty.</span>';
+        else if (credits < 100) warning.innerHTML = '<span style="color:var(--warning)">⚠ Only ' + credits + ' credits left.</span>';
+        else warning.innerHTML = '';
       }
     }
 
@@ -642,119 +447,69 @@ PID|1||123456||DOE^JOHN</textarea>
       }
     }
 
-    function toggleKey() {
-      apiKeyRevealed = !apiKeyRevealed;
-      updateApiKeyDisplay();
+    function toggleKey() { apiKeyRevealed = !apiKeyRevealed; updateApiKeyDisplay(); }
+    function copyKey() { navigator.clipboard.writeText(currentApiKey); showToast('API key copied!', 'success'); }
+    function populateExplorerKey() {
+      const input = document.getElementById('explorer-api-key');
+      if (input) {
+        if (currentApiKey && currentApiKey !== '********') input.value = currentApiKey;
+        else input.placeholder = 'API key is hidden. Paste it here.';
+      }
     }
-
-    function copyKey() {
-      navigator.clipboard.writeText(currentApiKey);
-      showToast('API key copied!', 'success');
-    }
-
-    
-    function showLogoutModal() { document.getElementById('logout-modal').classList.remove('hidden'); }
-    
-    function confirmSignOut() {
-      // Hide modal first, then sign out
-      closeLogoutModal();
-      supabaseClient.auth.signOut();
-    }
-
-    function closeLogoutModal() { document.getElementById('logout-modal').classList.add('hidden'); }
 
     function showRotateModal() { document.getElementById('rotate-modal').classList.remove('hidden'); }
     function closeRotateModal() { document.getElementById('rotate-modal').classList.add('hidden'); }
-
     async function rotateKey() {
       closeRotateModal();
       try {
-        const res = await fetch(`${API_BASE}/portal/rotate-key`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${session.access_token}` }
-        });
+        const res = await fetch(`${API_BASE}/portal/rotate-key`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } });
         if (res.ok) {
           const d = await res.json();
-          currentApiKey = d.new_api_key;
-          credits = d.credits_remaining;
-          apiKeyRevealed = true;
-          updateApiKeyDisplay();
-          updateCreditDisplay();
-          showToast('Key rotated! Copy your new API key now.', 'success');
+          currentApiKey = d.new_api_key; credits = d.credits_remaining; apiKeyRevealed = true;
+          updateApiKeyDisplay(); updateCreditDisplay(); populateExplorerKey();
+          showToast('Key rotated! Copy your new key now.', 'success');
         } else {
-          const err = await res.text();
-          console.error('Rotate error:', res.status, err);
+          const err = await res.text(); console.error('Rotate error:', res.status, err);
           showToast('Rotation failed.', 'error');
         }
-      } catch (e) {
-        console.error('Rotate network error:', e);
-        if (e instanceof TypeError && e.message.includes('fetch')) {
-          console.error('Possible network failure: check API_BASE URL and Render service status.');
-        }
-        showToast('Network error during rotation.', 'error');
-      }
+      } catch (e) { console.error('Rotate network error:', e); showToast('Network error during rotation.', 'error'); }
     }
+
+    function showLogoutModal() { document.getElementById('logout-modal').classList.remove('hidden'); }
+    function closeLogoutModal() { document.getElementById('logout-modal').classList.add('hidden'); }
+    function confirmSignOut() { closeLogoutModal(); supabaseClient.auth.signOut(); }
 
     async function fetchUsage() {
       const res = await fetch(`${API_BASE}/portal/usage`, { headers: { Authorization: `Bearer ${session.access_token}` } });
       if (res.ok) { const d = await res.json(); dailyUsage = d.daily_usage || {}; renderUsageChart(); }
     }
-
     function renderUsageChart() {
-      const totalTranslations = Object.values(dailyUsage).reduce((a, b) => a + b, 0);
-      const emptyState = document.getElementById('usage-empty-state');
-      if (emptyState) {
-        if (totalTranslations === 0) emptyState.classList.remove('hidden');
-        else emptyState.classList.add('hidden');
-      }
-
       const ctx = document.getElementById('usage-chart');
       if (!ctx) return;
       if (window.chart) window.chart.destroy();
-
-      // Build last 7 days (including today)
-      const labels = [];
-      const values = [];
-      const today = new Date();
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(today);
-        d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().slice(0,10);
-        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-        labels.push(dayName);
-        values.push(dailyUsage[dateStr] || 0);
+      const labels = Object.keys(dailyUsage).sort();
+      const values = labels.map(d => dailyUsage[d]);
+      const total = values.reduce((a,b)=>a+b,0);
+      const emptyState = document.getElementById('usage-empty-state');
+      if (emptyState) {
+        if (total === 0) emptyState.classList.remove('hidden'); else emptyState.classList.add('hidden');
       }
-
+      // health stats
+      document.getElementById('total-translations').textContent = total;
+      document.getElementById('successful-translations').textContent = total;
+      document.getElementById('failed-translations').textContent = 0;
+      document.getElementById('success-rate').textContent = total ? '100%' : '--';
       window.chart = new Chart(ctx.getContext('2d'), {
         type: 'bar',
-        data: {
-          labels,
-          datasets: [{
-            label: 'Translations',
-            data: values,
-            backgroundColor: '#16C7D9',
-            borderRadius: 4,
-            barPercentage: 0.6,
-            categoryPercentage: 0.8
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0, color: '#94A3B8' }, grid: { color: '#1E334A' } },
-            x: { ticks: { color: '#94A3B8' }, grid: { display: false } }
-          }
-        }
+        data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#16C7D9', borderRadius: 4, barPercentage: 0.6, categoryPercentage: 0.8 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0, color: '#94A3B8' } }, x: { ticks: { color: '#94A3B8' } } } }
       });
     }
 
     async function fetchInvoices() {
       const res = await fetch(`${API_BASE}/portal/invoices`, { headers: { Authorization: `Bearer ${session.access_token}` } });
       if (res.ok) {
-        const d = await res.json();
-        invoices = d.invoices || [];
+        const d = await res.json(); invoices = d.invoices || [];
         const list = document.getElementById('invoice-list');
         if (invoices.length === 0) list.textContent = 'No invoices yet.';
         else list.innerHTML = invoices.map(inv => `${new Date(inv.created_at).toLocaleDateString()} - $${(inv.amount_total/100).toFixed(2)} - ${inv.credits_purchased} credits`).join('<br>');
@@ -763,28 +518,17 @@ PID|1||123456||DOE^JOHN</textarea>
 
     async function buyCredits(priceId) {
       if (!stripe) { showToast('Payment unavailable.', 'error'); return; }
-      const res = await fetch(`${API_BASE}/portal/create-checkout-session`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ price_id: priceId })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        window.location.href = data.url;
-      } else {
-        showToast('Checkout failed.', 'error');
-      }
+      const res = await fetch(`${API_BASE}/portal/create-checkout-session`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ price_id: priceId }) });
+      if (res.ok) { const data = await res.json(); window.location.href = data.url; }
+      else showToast('Checkout failed.', 'error');
     }
 
     async function exploreTranslate() {
-      const hl7 = document.getElementById('explorer-hl7').value;
-      const idem = document.getElementById('explorer-idem').value;
       const manualKey = document.getElementById('explorer-api-key').value.trim();
       const apiKeyToUse = manualKey || currentApiKey;
-      if (!apiKeyToUse || apiKeyToUse === '********') {
-        showToast('Please paste your API key in the Explorer field.', 'error');
-        return;
-      }
+      if (!apiKeyToUse || apiKeyToUse === '********') { showToast('Please paste your API key in the Explorer field.', 'error'); return; }
+      const hl7 = document.getElementById('explorer-hl7').value;
+      const idem = document.getElementById('explorer-idem').value;
       const headers = { 'Content-Type': 'text/plain', 'X-API-Key': apiKeyToUse };
       if (idem) headers['X-Idempotency-Key'] = idem;
       const start = Date.now();
@@ -792,14 +536,7 @@ PID|1||123456||DOE^JOHN</textarea>
       const latency = Date.now() - start;
       const body = await res.text();
       let pretty = ''; try { pretty = JSON.stringify(JSON.parse(body), null, 2); } catch { pretty = body; }
-      if (res.status === 429) {
-        showToast('Rate limit reached. Please wait a minute and try again.', 'warning');
-      } else if (!res.ok) {
-        showToast('Translation failed: ' + res.status, 'error');
-      } else {
-        showToast('Translation successful!', 'success');
-      }
-      document.getElementById('explorer-response').innerHTML = `<div class="card"><span style="color:${res.ok ? 'var(--success)' : 'var(--error)'}">${res.status}</span> ${latency}ms<pre style="background:var(--surface-elevated); padding:12px; margin-top:8px; overflow-x:auto; color:var(--text-secondary);">${pretty}</pre></div>`;
+      document.getElementById('explorer-response').innerHTML = `<div class="card"><span style="color:${res.ok?'var(--success)':'var(--error)'}">${res.status}</span> ${latency}ms<pre style="background:var(--surface-elevated); padding:12px; margin-top:8px; overflow-x:auto;">${pretty}</pre></div>`;
       fetchUsage();
     }
   </script>
