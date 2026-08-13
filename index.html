@@ -446,7 +446,7 @@ PID|1||123456||DOE^JOHN</textarea>
         populateExplorerKey();
       } catch (e) {
         console.error('fetchProfile error:', e);
-        showToast('Error loading user data', 'error');
+        showToast('Error loading user data: ' + e.message, 'error');
       }
     }
 
