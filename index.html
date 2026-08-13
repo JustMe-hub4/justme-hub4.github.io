@@ -4,61 +4,70 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FHIR Interop Engine</title>
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>◈</text></svg>">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://js.stripe.com/v3/"></script>
   <style>
     :root {
-      --bg: #07111F; --surface: #101D2D; --surface-elevated: #162438; --border: #1E334A;
-      --primary: #16C7D9; --secondary: #6366F1; --violet: #8B5CF6;
-      --success: #22C55E; --warning: #F59E0B; --error: #EF4444;
-      --text: #F8FAFC; --text-secondary: #CBD5E1; --text-muted: #94A3B8;
+      --bg: #07111F;
+      --surface: #101D2D;
+      --surface-elevated: #162438;
+      --border: #1E334A;
+      --primary: #16C7D9;
+      --indigo: #6366F1;
+      --violet: #8B5CF6;
+      --success: #22C55E;
+      --warning: #F59E0B;
+      --error: #EF4444;
+      --text: #F8FAFC;
+      --text-secondary: #CBD5E1;
+      --text-muted: #94A3B8;
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+      --radius: 10px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.5; }
     button { cursor: pointer; font-family: inherit; }
     input, textarea { font-family: inherit; }
     .hidden { display: none !important; }
 
-    /* Login */
-    #login-container { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-    .login-card { background: var(--surface); border-radius: 12px; padding: 40px; width: 400px; text-align: center; border: 1px solid var(--border); }
-    .login-card input { width: 100%; padding: 10px; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 6px; color: var(--text); margin: 8px 0; }
-    .btn { padding: 10px 20px; border-radius: 6px; font-weight: 600; border: none; }
-    .btn-primary { background: var(--primary); color: #07111F; width: 100%; margin-top: 12px; }
-    .btn-secondary { background: var(--surface-elevated); color: var(--text); border: 1px solid var(--border); width: 100%; margin-top: 8px; }
-    .btn-danger { background: var(--error); color: white; }
-    .toggle-link { color: var(--primary); font-size: 13px; cursor: pointer; margin-top: 12px; display: block; }
-
-    /* App layout */
+    /* Layout */
     .app { display: flex; min-height: 100vh; }
-    .sidebar { width: 200px; background: #07111F; padding: 24px; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-    .sidebar h2 { color: var(--primary); margin-bottom: 24px; }
+    .sidebar { width: 176px; background: var(--surface); padding: 24px 16px; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .sidebar .logo { font-size: 20px; font-weight: 700; color: var(--primary); margin-bottom: 32px; }
     .sidebar nav { flex: 1; }
-    .sidebar a { display: block; padding: 10px; color: var(--text-muted); text-decoration: none; border-radius: 6px; margin-bottom: 8px; font-size: 14px; }
-    .sidebar a:hover, .sidebar a.active { background: var(--surface-elevated); color: var(--text); }
-    .sidebar a.active { color: var(--primary); }
-    .desktop-logout { width: 100%; margin-top: auto; }
-    .logout-mobile { display: none; }
-    .main { flex: 1; padding: 24px; }
+    .sidebar nav a { display: block; padding: 10px 12px; margin-bottom: 4px; border-radius: 8px; color: var(--text-muted); text-decoration: none; font-size: 14px; }
+    .sidebar nav a:hover, .sidebar nav a.active { background: var(--surface-elevated); color: var(--text); }
+    .sidebar nav a.active { color: var(--primary); }
+    .sidebar .logout { margin-top: auto; width: 100%; }
+    .main { flex: 1; padding: 24px; max-width: 1200px; overflow-y: auto; }
 
     /* Cards */
-    .card { background: var(--surface); border-radius: 10px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--border); position: relative; }
-    .card h2 { font-size: 24px; font-weight: 600; margin-bottom: 12px; }
+    .card { background: var(--surface); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; border: 1px solid var(--border); }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .card-title { font-size: 18px; font-weight: 600; }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 
-    /* API key */
-    .key-display { font-family: monospace; background: var(--surface-elevated); padding: 10px; border-radius: 6px; word-break: break-all; }
-    .flex-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+    /* Buttons */
+    .btn { padding: 10px 20px; border-radius: 6px; font-weight: 600; border: none; transition: background 0.2s, filter 0.2s; }
+    .btn-primary { background: var(--primary); color: #07111F; }
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-secondary { background: var(--surface-elevated); color: var(--text); border: 1px solid var(--border); }
+    .btn-danger { background: var(--error); color: white; }
+    .btn-block { width: 100%; }
+
+    /* Inputs */
+    .input { width: 100%; padding: 10px 14px; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
+
+    /* API Key */
+    .key-display { font-family: var(--mono); background: var(--surface-elevated); padding: 12px; border-radius: 6px; word-break: break-all; }
+    .key-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 
     /* Chart */
     .chart-wrapper { position: relative; }
-    canvas { max-width: 100%; }
-    .chart-empty-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-muted); pointer-events: none; }
+    .chart-empty-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
 
     /* Toast */
     .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 10000; display: flex; flex-direction: column; gap: 8px; }
@@ -70,184 +79,70 @@
 
     /* Modals */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-    .modal-box { background: var(--surface); border-radius: 12px; padding: 30px; width: 400px; border: 1px solid var(--border); }
+    .modal-box { background: var(--surface); border-radius: 12px; padding: 24px; width: 400px; border: 1px solid var(--border); }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
 
     /* Mobile */
-    
-    .mobile-logout-fab svg { width: 20px; height: 20px; }
-  
-    /* Dashboard declutter */
-    .card { padding: 16px; margin-bottom: 16px; }
-    #tab-dashboard .card h2 { font-size: 20px; margin-bottom: 8px; }
-    .grid-2 { gap: 16px; }
-    #tab-dashboard .credit-balance-display { font-size: 1.5rem; }
-    #success-rate, #total-translations, #successful-translations, #failed-translations {
-      font-size: 18px;
-    }
-    #usage-chart { min-height: 180px; max-height: 250px; }
-    /* Hide Get Started card by default; show only when no translations */
-    #tab-dashboard .card:last-child { display: none; }
-    .show-get-started #tab-dashboard .card:last-child { display: block; }
+    .mobile-header { display: none; }
+    .mobile-drawer { display: none; }
+    .mobile-bottom-nav { display: none; }
 
+    @media (max-width: 1023px) {
+      .sidebar { display: none; }
+      .mobile-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+      }
+      .hamburger { background: none; border: none; color: var(--text); font-size: 24px; }
+      .mobile-drawer {
+        position: fixed;
+        top: 0; left: 0; bottom: 0;
+        width: 300px;
+        background: var(--surface);
+        z-index: 4000;
+        padding: 20px;
+        transform: translateX(-100%);
+        transition: transform 0.3s;
+      }
+      .mobile-drawer.open { transform: translateX(0); }
+      .drawer-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+      .mobile-bottom-nav {
+        display: flex;
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        height: 56px;
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        justify-content: space-around;
+        align-items: center;
+      }
+      .mobile-bottom-nav a { color: var(--text-muted); text-decoration: none; font-size: 12px; }
+      .mobile-bottom-nav a.active { color: var(--primary); }
+      .main { padding: 16px; }
+    }
 
-  /* Mobile-first layout */
-  
-    .hamburger {
-      background: none;
-      border: none;
-      color: var(--text);
-      font-size: 24px;
+    @media (max-width: 640px) {
+      .grid-2 { grid-template-columns: 1fr; }
+      .btn-block { width: 100%; }
+      .modal-box { width: 100%; border-radius: 12px 12px 0 0; }
+      .modal-overlay { align-items: flex-end; }
+      .key-actions .btn { width: 100%; }
     }
-    .mobile-drawer {
-      position: fixed;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      width: 80%;
-      max-width: 300px;
-      background: var(--surface);
-      z-index: 4000;
-      padding: 20px;
-      overflow-y: auto;
-      transform: translateX(-100%);
-      transition: transform 0.3s;
-    }
-    .mobile-drawer.open { transform: translateX(0); }
-    .drawer-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-    }
-    .drawer-footer { margin-top: 24px; color: var(--success); }
-    .mobile-bottom-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 56px;
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      z-index: 2000;
-    }
-    .mobile-bottom-nav a { color: var(--text-muted); text-decoration: none; font-size: 12px; }
-    .mobile-bottom-nav a.active { color: var(--primary); }
-    .main { padding-bottom: 80px; }
-    .card { padding: 16px; margin-bottom: 12px; }
-    .grid-2 { grid-template-columns: 1fr; gap: 12px; }
-    .btn { width: 100%; }
-    .flex-row { flex-wrap: wrap; }
-    /* Buttons full width on mobile */
-    .key-display { font-size: 13px; }
-    .modal-overlay { align-items: flex-end; }
-    .modal-box { width: 100%; border-radius: 12px 12px 0 0; }
-    /* Invoice cards */
-    #invoice-list br { display: none; }
-    #invoice-list { display: flex; flex-direction: column; gap: 8px; }
-    /* Explorer stacked */
-    #tab-explorer textarea { font-size: 13px; }
-    /* Hide health card and get started on mobile for first login simplicity */
-    #tab-dashboard .card:nth-child(2) { display: none; } /* health card */
-    #tab-dashboard .card:last-child { display: block; } /* get started */
-  }
-
-  @media (min-width: 769px) {
-    .mobile-header, .mobile-drawer, .mobile-bottom-nav { display: none; }
-  }
-
-
-  /* Mobile-first layout */
-  @media (max-width: 768px) {
-    /* Hide sidebar and show header/bottom nav */
-    .sidebar { display: none; }
-    .mobile-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 16px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-    }
-    .hamburger {
-      background: none;
-      border: none;
-      color: var(--text);
-      font-size: 24px;
-    }
-    .mobile-drawer {
-      position: fixed;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      width: 80%;
-      max-width: 300px;
-      background: var(--surface);
-      z-index: 4000;
-      padding: 20px;
-      overflow-y: auto;
-      transform: translateX(-100%);
-      transition: transform 0.3s;
-    }
-    .mobile-drawer.open { transform: translateX(0); }
-    .drawer-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-    }
-    .drawer-footer { margin-top: 24px; color: var(--success); }
-    .mobile-bottom-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 56px;
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      z-index: 2000;
-    }
-    .mobile-bottom-nav a { color: var(--text-muted); text-decoration: none; font-size: 12px; }
-    .mobile-bottom-nav a.active { color: var(--primary); }
-    .main { padding-bottom: 80px; }
-    .card { padding: 16px; margin-bottom: 12px; }
-    .grid-2 { grid-template-columns: 1fr; gap: 12px; }
-    .btn { width: 100%; }
-    .flex-row { flex-wrap: wrap; }
-    /* Buttons full width on mobile */
-    .key-display { font-size: 13px; }
-    .modal-overlay { align-items: flex-end; }
-    .modal-box { width: 100%; border-radius: 12px 12px 0 0; }
-    /* Invoice cards */
-    #invoice-list br { display: none; }
-    #invoice-list { display: flex; flex-direction: column; gap: 8px; }
-    /* Explorer stacked */
-    #tab-explorer textarea { font-size: 13px; }
-    /* Hide health card and get started on mobile for first login simplicity */
-    #tab-dashboard .card:nth-child(2) { display: none; } /* health card */
-    #tab-dashboard .card:last-child { display: block; } /* get started */
-  }
-
-  @media (min-width: 769px) {
-    .mobile-header, .mobile-drawer, .mobile-bottom-nav { display: none; }
-  }
-
-</style>
+  </style>
 </head>
 <body>
-  <!-- Mobile Header (hamburger) -->
+  <!-- Mobile Header -->
   <div class="mobile-header">
     <span>◈ FHIR INTEROP</span>
     <button class="hamburger" onclick="toggleDrawer()">☰</button>
   </div>
 
   <!-- Mobile Drawer -->
-  <div id="mobile-drawer" class="mobile-drawer hidden">
+  <div id="mobile-drawer" class="mobile-drawer">
     <div class="drawer-header">
       <span>◈ FHIR INTEROP</span>
       <button onclick="toggleDrawer()">×</button>
@@ -259,57 +154,33 @@
       <a href="#" onclick="switchTab('docs'); toggleDrawer();">⌘ API Docs</a>
       <a href="#" onclick="switchTab('explorer'); toggleDrawer();">◈ API Explorer</a>
       <a href="#" onclick="switchTab('settings'); toggleDrawer();">⚙ Settings</a>
-      <a href="#" onclick="showLogoutModal(); toggleDrawer();">↪ Logout</a>
+      <a href="#" onclick="showLogoutModal(); toggleDrawer();">↪ Sign Out</a>
     </nav>
-    <div class="drawer-footer">● API Online</div>
   </div>
 
-  <!-- Mobile Header (hamburger) -->
-  <div class="mobile-header">
-    <span>◈ FHIR INTEROP</span>
-    <button class="hamburger" onclick="toggleDrawer()">☰</button>
-  </div>
-
-  <!-- Mobile Drawer -->
-  <div id="mobile-drawer" class="mobile-drawer hidden">
-    <div class="drawer-header">
-      <span>◈ FHIR INTEROP</span>
-      <button onclick="toggleDrawer()">×</button>
-    </div>
-    <nav>
-      <a href="#" onclick="switchTab('dashboard'); toggleDrawer();">◉ Dashboard</a>
-      <a href="#" onclick="switchTab('usage'); toggleDrawer();">◇ Usage</a>
-      <a href="#" onclick="switchTab('billing'); toggleDrawer();">$ Billing</a>
-      <a href="#" onclick="switchTab('docs'); toggleDrawer();">⌘ API Docs</a>
-      <a href="#" onclick="switchTab('explorer'); toggleDrawer();">◈ API Explorer</a>
-      <a href="#" onclick="switchTab('settings'); toggleDrawer();">⚙ Settings</a>
-      <a href="#" onclick="showLogoutModal(); toggleDrawer();">↪ Logout</a>
-    </nav>
-    <div class="drawer-footer">● API Online</div>
-  </div>
-
-  <!-- Login -->
-  <div id="login-container">
-    <div class="login-card">
+  <!-- Login Container -->
+  <div id="login-container" class="hidden">
+    <div class="login-card" style="max-width:400px; margin:0 auto; padding:40px; background:var(--surface); border-radius:12px; text-align:center;">
       <h1>FHIR Interop Engine</h1>
-      <p style="color:var(--text-muted)">HL7v2 → FHIR R4 Translation</p>
-      <input type="email" id="login-email" placeholder="Enter your email" autocomplete="email">
-      <input type="password" id="login-password" placeholder="Password" style="display:none;">
-      <button id="btn-login" class="btn btn-primary">Sign In / Sign Up</button>
+      <p style="color:var(--text-muted);">HL7v2 → FHIR R4 Translation</p>
+      <input type="email" id="login-email" class="input" placeholder="Enter your email">
+      <input type="password" id="login-password" class="input" placeholder="Password" style="display:none;">
+      <button id="btn-login" class="btn btn-primary btn-block">Sign In / Sign Up</button>
       <p id="login-msg" style="color:var(--text-muted); margin-top:12px;"></p>
-      <span class="toggle-link" id="toggle-auth-mode">Or use password</span>
-      <button onclick="socialLogin('google')" class="btn btn-secondary">Continue with Google</button>
-      <button onclick="socialLogin('github')" class="btn btn-secondary">Continue with GitHub</button>
-      <button onclick="socialLogin('linkedin')" class="btn btn-secondary">Continue with LinkedIn</button>
-      <button onclick="socialLogin('facebook')" class="btn btn-secondary">Continue with Facebook</button>
+      <span class="toggle-link" id="toggle-auth-mode" style="color:var(--primary); cursor:pointer;">Or use password</span>
+      <button onclick="socialLogin('google')" class="btn btn-secondary btn-block">Continue with Google</button>
+      <button onclick="socialLogin('github')" class="btn btn-secondary btn-block">Continue with GitHub</button>
+      <button onclick="socialLogin('linkedin')" class="btn btn-secondary btn-block">Continue with LinkedIn</button>
+      <button onclick="socialLogin('facebook')" class="btn btn-secondary btn-block">Continue with Facebook</button>
     </div>
   </div>
 
-  <!-- Dashboard -->
+  <!-- Dashboard Container -->
   <div id="dashboard-container" class="hidden">
     <div class="app">
+      <!-- Desktop Sidebar -->
       <div class="sidebar">
-        <h2>◈ FHIR</h2>
+        <div class="logo">◈ FHIR</div>
         <nav>
           <a href="#" class="active" onclick="switchTab('dashboard')">📊 Dashboard</a>
           <a href="#" onclick="switchTab('usage')">📈 Usage</a>
@@ -317,23 +188,23 @@
           <a href="#" onclick="switchTab('docs')">📘 Docs</a>
           <a href="#" onclick="switchTab('explorer')">🧪 Explorer</a>
           <a href="#" onclick="switchTab('settings')">⚙ Settings</a>
-          <a href="#" class="logout-mobile" onclick="showLogoutModal()">↪ Logout</a>
         </nav>
-        <button onclick="showLogoutModal()" class="btn btn-danger desktop-logout">Sign Out</button>
+        <button onclick="showLogoutModal()" class="btn btn-danger btn-block logout">Sign Out</button>
       </div>
+
+      <!-- Main Content -->
       <div class="main">
-        <!-- Dashboard Tab -->
         <div id="tab-dashboard" class="tab-content active">
           <h2 id="greeting">Good morning, developer.</h2>
           <div class="grid-2">
-            <div class="card" style="border-color: var(--primary);">
-              <strong>Available Credits</strong>
+            <div class="card">
+              <div class="card-header"><span class="card-title">Available Credits</span></div>
               <div style="font-size:2rem; font-weight:700;" class="credit-balance-display">0</div>
               <div id="credit-warning" style="margin-top:8px;"></div>
-              <button class="btn btn-primary" onclick="switchTab('billing')">Buy Credits</button>
+              <button class="btn btn-primary btn-block" onclick="switchTab('billing')">Buy Credits</button>
             </div>
-            <div class="card" style="border-color: var(--violet);">
-              <strong>Translation Health</strong>
+            <div class="card">
+              <div class="card-header"><span class="card-title">Translation Health</span></div>
               <div style="display:flex; gap:16px; margin-top:8px;">
                 <div><span style="font-size:24px; font-weight:700;" id="success-rate">--</span><br><span style="color:var(--text-muted)">Success rate</span></div>
                 <div><span style="font-size:24px; font-weight:700;" id="total-translations">0</span><br><span style="color:var(--text-muted)">Total</span></div>
@@ -343,47 +214,44 @@
             </div>
           </div>
           <div class="card">
-            <strong>API Key</strong>
+            <div class="card-header"><span class="card-title">API Key</span></div>
             <div class="key-display" id="api-key-display">••••••••••••••••••••••••</div>
-            <div class="flex-row">
+            <div class="key-actions">
               <button id="btn-show-key" class="btn btn-secondary" onclick="toggleKey()">Show</button>
               <button class="btn btn-secondary" onclick="copyKey()">Copy</button>
               <button class="btn btn-danger" onclick="showRotateModal()">Rotate</button>
             </div>
           </div>
           <div class="card">
-            <strong>Translations (Last 7 Days)</strong>
+            <div class="card-header"><span class="card-title">Translations (Last 7 Days)</span></div>
             <div class="chart-wrapper">
               <div id="usage-empty-state" class="chart-empty-overlay hidden">No translations yet</div>
-              <canvas id="usage-chart" style="min-height:250px; max-height:400px; margin-top:10px;"></canvas>
+              <canvas id="usage-chart" style="min-height:200px; max-height:300px;"></canvas>
             </div>
           </div>
           <div class="card">
-            <strong>Get Started</strong>
+            <div class="card-header"><span class="card-title">Get Started</span></div>
             <p>① Copy API key → ② Send HL7 → ③ Receive FHIR</p>
-            <button class="btn btn-primary" onclick="switchTab('docs')">Get Started</button>
+            <button class="btn btn-primary btn-block" onclick="switchTab('docs')">Get Started</button>
           </div>
         </div>
 
-        <!-- Usage Tab -->
         <div id="tab-usage" class="tab-content hidden">
           <h2>Usage</h2>
           <div class="card">
-            <canvas id="usage-chart-2" style="min-height:250px; max-height:400px;"></canvas>
+            <canvas id="usage-chart-2" style="min-height:200px; max-height:300px;"></canvas>
           </div>
         </div>
 
-        <!-- Billing Tab -->
         <div id="tab-billing" class="tab-content hidden">
-          <h2>Billing</h2>
+          <h2>Buy Credits</h2>
           <div class="card"><h3>Starter - 100 credits - $30</h3><button class="btn btn-primary" onclick="buyCredits('price_1U1xzUIUjoQtwpInIy0o6u1O')">Buy</button></div>
           <div class="card"><h3>Growth - 10,000 credits - $2,000</h3><button class="btn btn-primary" onclick="buyCredits('price_1U1xzUIUjoQtwpInNFq6TRCU')">Buy</button></div>
           <div class="card"><h3>Volume - 75,000 credits - $9,000</h3><button class="btn btn-primary" onclick="buyCredits('price_1U1xzUIUjoQtwpInL8G3EBZX')">Buy</button></div>
-          <h3 style="margin-top:24px;">Invoice History</h3>
+          <h3>Invoice History</h3>
           <div id="invoice-list">No invoices yet.</div>
         </div>
 
-        <!-- Docs Tab -->
         <div id="tab-docs" class="tab-content hidden">
           <h2>Quick Start</h2>
           <div class="card">
@@ -392,30 +260,22 @@
             <button onclick="copyKey()" class="btn btn-secondary">Copy</button>
             <br><br>
             <p>2. Send a request</p>
-            <pre style="background:var(--surface-elevated); padding:12px; border-radius:6px; overflow-x:auto;">
-curl -X POST https://quack-xzno.onrender.com/v1/translate \\
-  -H "X-API-Key: <span id="doc-key-inline">YOUR_KEY</span>" \\
-  -H "Content-Type: text/plain" \\
-  --data-binary @message.hl7
-            </pre>
-            <p style="color:var(--text-muted);">Include an optional <strong>X-Idempotency-Key</strong> for safe retries.</p>
+            <pre style="background:var(--surface-elevated); padding:12px; border-radius:6px; overflow-x:auto;">curl -X POST https://quack-xzno.onrender.com/v1/translate -H "X-API-Key: YOUR_KEY" -H "Content-Type: text/plain" --data-binary @message.hl7</pre>
           </div>
         </div>
 
-        <!-- Explorer Tab -->
         <div id="tab-explorer" class="tab-content hidden">
           <h2>API Explorer</h2>
           <div class="card">
-            <input type="text" id="explorer-api-key" placeholder="Paste your API key here if not auto-filled" style="width:100%; padding:10px; background:var(--surface-elevated); border:1px solid var(--border); border-radius:6px; color:var(--text); margin-bottom:8px;">
-            <textarea id="explorer-hl7" style="width:100%; height:120px; background:var(--surface-elevated); border:1px solid var(--border); border-radius:6px; color:var(--text); padding:10px; font-family:monospace;">MSH|^~\&|LAB|HOSPITAL|APP|20260809120000||ADT^A01|MSG001|P|2.5
+            <input type="text" id="explorer-api-key" class="input" placeholder="Paste your API key here if not auto-filled">
+            <textarea id="explorer-hl7" class="input" style="height:120px; font-family:var(--mono); margin-top:8px;">MSH|^~\&|LAB|HOSPITAL|APP|20260809120000||ADT^A01|MSG001|P|2.5
 PID|1||123456||DOE^JOHN</textarea>
-            <input id="explorer-idem" placeholder="Idempotency Key (optional)" style="width:100%; padding:10px; background:var(--surface-elevated); border:1px solid var(--border); border-radius:6px; color:var(--text); margin-top:8px;">
-            <button onclick="exploreTranslate()" class="btn btn-primary">▶ Translate</button>
+            <input id="explorer-idem" class="input" placeholder="Idempotency Key (optional)" style="margin-top:8px;">
+            <button onclick="exploreTranslate()" class="btn btn-primary btn-block" style="margin-top:12px;">Translate</button>
             <div id="explorer-response" style="margin-top:16px;"></div>
           </div>
         </div>
 
-        <!-- Settings Tab -->
         <div id="tab-settings" class="tab-content hidden">
           <h2>Settings</h2>
           <div class="card">
@@ -431,9 +291,9 @@ PID|1||123456||DOE^JOHN</textarea>
   <div id="rotate-modal" class="modal-overlay hidden">
     <div class="modal-box">
       <h3>Rotate API Key</h3>
-      <p>Your current key will be <strong>immediately deactivated</strong>.</p>
+      <p>Your current key will be immediately deactivated.</p>
       <p>Credits will be transferred to the new key.</p>
-      <div class="flex-row" style="justify-content:flex-end;">
+      <div class="modal-actions">
         <button class="btn btn-secondary" onclick="closeRotateModal()">Cancel</button>
         <button class="btn btn-danger" onclick="rotateKey()">Rotate Key</button>
       </div>
@@ -445,29 +305,16 @@ PID|1||123456||DOE^JOHN</textarea>
     <div class="modal-box">
       <h3>Sign Out</h3>
       <p>Are you sure you want to sign out?</p>
-      <p class="muted">Your API key and credits will remain unchanged.</p>
-      <div class="flex-row" style="justify-content:flex-end;">
+      <p>Your API key and credits will remain unchanged.</p>
+      <div class="modal-actions">
         <button class="btn btn-secondary" onclick="closeLogoutModal()">Cancel</button>
         <button class="btn btn-danger" onclick="confirmSignOut()">Sign Out</button>
       </div>
     </div>
   </div>
 
-  <!-- Floating Mobile Logout -->
-  <button id="mobile-logout-fab" class="mobile-logout-fab" onclick="showLogoutModal()" title="Sign Out">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-  </button>
-
   <!-- Toast Container -->
-  
-  <!-- Mobile Bottom Nav -->
-  <div class="mobile-bottom-nav">
-    <a href="#" class="active" onclick="switchTab('dashboard')">Home</a>
-    <a href="#" onclick="switchTab('usage')">Usage</a>
-    <a href="#" onclick="switchTab('billing')">Billing</a>
-    <a href="#" onclick="toggleDrawer()">More</a>
-  </div>
-
+  <div id="toast-container" class="toast-container"></div>
 
   <!-- Mobile Bottom Nav -->
   <div class="mobile-bottom-nav">
@@ -476,8 +323,6 @@ PID|1||123456||DOE^JOHN</textarea>
     <a href="#" onclick="switchTab('billing')">Billing</a>
     <a href="#" onclick="toggleDrawer()">More</a>
   </div>
-
-<div id="toast-container" class="toast-container"></div>
 
   <script>
     const SUPABASE_URL = 'https://lhgfolrupmsklrccirpj.supabase.co';
@@ -494,12 +339,6 @@ PID|1||123456||DOE^JOHN</textarea>
     let stripe = typeof Stripe !== 'undefined' ? Stripe(STRIPE_KEY) : null;
     let session = null, currentApiKey = '', apiKeyRevealed = false, credits = 0, dailyUsage = {}, invoices = [];
 
-    
-  function toggleDrawer() {
-    const drawer = document.getElementById('mobile-drawer');
-    if (drawer) drawer.classList.toggle('open');
-  }
-
     function showToast(msg, type = 'info') {
       const container = document.getElementById('toast-container');
       const toast = document.createElement('div');
@@ -507,6 +346,10 @@ PID|1||123456||DOE^JOHN</textarea>
       toast.textContent = msg;
       container.appendChild(toast);
       setTimeout(() => toast.remove(), 4000);
+    }
+
+    function toggleDrawer() {
+      document.getElementById('mobile-drawer').classList.toggle('open');
     }
 
     function updateGreeting() {
@@ -517,8 +360,8 @@ PID|1||123456||DOE^JOHN</textarea>
       if (hour >= 12 && hour < 17) g = 'Good afternoon';
       else if (hour >= 17) g = 'Good evening';
       const email = session?.user?.email || '';
-      const firstName = email.split('@')[0];
-      el.textContent = `${g}, ${firstName || 'developer'}.`;
+      const firstName = email.split('@')[0] || 'developer';
+      el.textContent = `${g}, ${firstName}.`;
     }
 
     async function socialLogin(provider) {
@@ -597,7 +440,6 @@ PID|1||123456||DOE^JOHN</textarea>
     }
 
     supabaseClient.auth.onAuthStateChange((event, authSession) => {
-      console.log('Auth event:', event);
       if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
         if (authSession) { session = authSession; showDashboard(); }
       } else if (event === 'SIGNED_OUT') {
@@ -614,19 +456,19 @@ PID|1||123456||DOE^JOHN</textarea>
       document.querySelectorAll('.tab-content').forEach(el => { el.classList.remove('active'); el.classList.add('hidden'); });
       const target = document.getElementById('tab-' + tab);
       if (target) { target.classList.remove('hidden'); target.classList.add('active'); }
-      document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
-      const link = document.querySelector(`.sidebar a[onclick="switchTab('${tab}')"]`);
+      document.querySelectorAll('.sidebar a, .mobile-bottom-nav a').forEach(a => a.classList.remove('active'));
+      const link = document.querySelector(`.sidebar a[onclick="switchTab('${tab}')"], .mobile-bottom-nav a[onclick="switchTab('${tab}')"]`);
       if (link) link.classList.add('active');
       if (tab === 'usage') fetchUsage();
       if (tab === 'billing') { fetchProfile(); fetchInvoices(); }
       if (tab === 'dashboard') { fetchProfile(); fetchUsage(); fetchInvoices(); }
       if (tab === 'settings') fetchProfile();
       if (tab === 'explorer') populateExplorerKey();
+      if (tab === 'docs') updateApiKeyDisplay();
     }
 
     async function fetchProfile() {
       try {
-        // Ensure we have a fresh session token
         const { data: { session: freshSession } } = await supabaseClient.auth.getSession();
         if (!freshSession) throw new Error('No active session');
         session = freshSession;
@@ -710,13 +552,6 @@ PID|1||123456||DOE^JOHN</textarea>
       if (res.ok) { const d = await res.json(); dailyUsage = d.daily_usage || {}; renderUsageChart(); }
     }
     function renderUsageChart() {
-      const totalTranslations = Object.values(dailyUsage).reduce((a, b) => a + b, 0);
-      const dashboard = document.getElementById('tab-dashboard');
-      if (dashboard) {
-        if (totalTranslations === 0) dashboard.classList.add('show-get-started');
-        else dashboard.classList.remove('show-get-started');
-      }
-
       const ctx = document.getElementById('usage-chart');
       if (!ctx) return;
       if (window.chart) window.chart.destroy();
@@ -727,7 +562,6 @@ PID|1||123456||DOE^JOHN</textarea>
       if (emptyState) {
         if (total === 0) emptyState.classList.remove('hidden'); else emptyState.classList.add('hidden');
       }
-      // health stats
       document.getElementById('total-translations').textContent = total;
       document.getElementById('successful-translations').textContent = total;
       document.getElementById('failed-translations').textContent = 0;
@@ -769,7 +603,13 @@ PID|1||123456||DOE^JOHN</textarea>
       const latency = Date.now() - start;
       const body = await res.text();
       let pretty = ''; try { pretty = JSON.stringify(JSON.parse(body), null, 2); } catch { pretty = body; }
-      document.getElementById('explorer-response').innerHTML = `<div class="card"><span style="color:${res.ok?'var(--success)':'var(--error)'}">${res.status}</span> ${latency}ms<pre style="background:var(--surface-elevated); padding:12px; margin-top:8px; overflow-x:auto;">${pretty}</pre></div>`;
+      let statusMsg = '';
+      if (res.status === 429) statusMsg = '⚠ Rate limit reached. Please wait and retry.';
+      else if (res.status === 402) statusMsg = '⚠ Insufficient credits. Please buy more.';
+      else if (res.status === 422) statusMsg = '🔴 Translation failed. Credit refunded.';
+      else if (res.status === 413) statusMsg = '⚠ Payload too large.';
+      else if (res.status === 401) statusMsg = '🔴 Invalid API key.';
+      document.getElementById('explorer-response').innerHTML = `<div class="card"><span style="color:${res.ok?'var(--success)':'var(--error)'}">${res.status}</span> ${latency}ms ${statusMsg}<pre style="background:var(--surface-elevated); padding:12px; margin-top:8px; overflow-x:auto;">${pretty}</pre></div>`;
       fetchUsage();
     }
   </script>
