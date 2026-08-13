@@ -288,7 +288,7 @@ PID|1||123456||DOE^JOHN</textarea>
       <p class="muted">Your API key and credits will remain unchanged.</p>
       <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:20px;">
         <button class="btn btn-secondary" onclick="closeLogoutModal()">Cancel</button>
-        <button class="btn btn-danger" onclick="supabaseClient.auth.signOut()">Sign Out</button>
+        <button class="btn btn-danger" onclick="confirmSignOut()">Sign Out</button>
       </div>
     </div>
   </div>
@@ -432,6 +432,7 @@ PID|1||123456||DOE^JOHN</textarea>
     }
 
     function showLogin() {
+      closeLogoutModal();
       document.getElementById('login-container').classList.remove('hidden');
       document.getElementById('dashboard-container').classList.add('hidden');
     }
@@ -445,6 +446,7 @@ PID|1||123456||DOE^JOHN</textarea>
         }
       } else if (event === 'SIGNED_OUT') {
         session = null;
+        closeLogoutModal();
         showLogin();
       }
     });
@@ -570,6 +572,13 @@ PID|1||123456||DOE^JOHN</textarea>
 
     
     function showLogoutModal() { document.getElementById('logout-modal').classList.remove('hidden'); }
+    
+    function confirmSignOut() {
+      // Hide modal first, then sign out
+      closeLogoutModal();
+      supabaseClient.auth.signOut();
+    }
+
     function closeLogoutModal() { document.getElementById('logout-modal').classList.add('hidden'); }
 
     function showRotateModal() { document.getElementById('rotate-modal').classList.remove('hidden'); }
