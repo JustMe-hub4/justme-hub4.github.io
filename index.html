@@ -138,7 +138,9 @@
       <a href="#" onclick="switchTab('explorer'); toggleDrawer();">◈ API Explorer</a>
       <a href="#" onclick="switchTab('settings'); toggleDrawer();">⚙ Settings</a>
       <a href="#" onclick="showLogoutModal(); toggleDrawer();">↪ Sign Out</a>
+      <a href="#" onclick="showLogoutModal(); toggleDrawer();">↪ Sign Out</a>
     </nav>
+        <button onclick="showLogoutModal()" class="btn btn-danger btn-block logout">Sign Out</button>
   </div>
 
   <!-- Login Container -->
@@ -304,7 +306,7 @@ PID|1||123456||DOE^JOHN</textarea>
     <a href="#" class="active" onclick="switchTab('dashboard')">Home</a>
     <a href="#" onclick="switchTab('usage')">Usage</a>
     <a href="#" onclick="switchTab('billing')">Billing</a>
-    <a href="#" onclick="toggleDrawer()">More</a>
+    <a href="#" onclick="toggleDrawer()" id="mobile-more-link">More</a>
   </div>
 
   <script>
