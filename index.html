@@ -91,6 +91,75 @@
 
 
   /* Mobile-first layout */
+  
+    .hamburger {
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 24px;
+    }
+    .mobile-drawer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 80%;
+      max-width: 300px;
+      background: var(--surface);
+      z-index: 4000;
+      padding: 20px;
+      overflow-y: auto;
+      transform: translateX(-100%);
+      transition: transform 0.3s;
+    }
+    .mobile-drawer.open { transform: translateX(0); }
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .drawer-footer { margin-top: 24px; color: var(--success); }
+    .mobile-bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 56px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      z-index: 2000;
+    }
+    .mobile-bottom-nav a { color: var(--text-muted); text-decoration: none; font-size: 12px; }
+    .mobile-bottom-nav a.active { color: var(--primary); }
+    .main { padding-bottom: 80px; }
+    .card { padding: 16px; margin-bottom: 12px; }
+    .grid-2 { grid-template-columns: 1fr; gap: 12px; }
+    .btn { width: 100%; }
+    .flex-row { flex-wrap: wrap; }
+    /* Buttons full width on mobile */
+    .key-display { font-size: 13px; }
+    .modal-overlay { align-items: flex-end; }
+    .modal-box { width: 100%; border-radius: 12px 12px 0 0; }
+    /* Invoice cards */
+    #invoice-list br { display: none; }
+    #invoice-list { display: flex; flex-direction: column; gap: 8px; }
+    /* Explorer stacked */
+    #tab-explorer textarea { font-size: 13px; }
+    /* Hide health card and get started on mobile for first login simplicity */
+    #tab-dashboard .card:nth-child(2) { display: none; } /* health card */
+    #tab-dashboard .card:last-child { display: block; } /* get started */
+  }
+
+  @media (min-width: 769px) {
+    .mobile-header, .mobile-drawer, .mobile-bottom-nav { display: none; }
+  }
+
+
+  /* Mobile-first layout */
   @media (max-width: 768px) {
     /* Hide sidebar and show header/bottom nav */
     .sidebar { display: none; }
@@ -171,6 +240,30 @@
 </style>
 </head>
 <body>
+  <!-- Mobile Header (hamburger) -->
+  <div class="mobile-header">
+    <span>◈ FHIR INTEROP</span>
+    <button class="hamburger" onclick="toggleDrawer()">☰</button>
+  </div>
+
+  <!-- Mobile Drawer -->
+  <div id="mobile-drawer" class="mobile-drawer hidden">
+    <div class="drawer-header">
+      <span>◈ FHIR INTEROP</span>
+      <button onclick="toggleDrawer()">×</button>
+    </div>
+    <nav>
+      <a href="#" onclick="switchTab('dashboard'); toggleDrawer();">◉ Dashboard</a>
+      <a href="#" onclick="switchTab('usage'); toggleDrawer();">◇ Usage</a>
+      <a href="#" onclick="switchTab('billing'); toggleDrawer();">$ Billing</a>
+      <a href="#" onclick="switchTab('docs'); toggleDrawer();">⌘ API Docs</a>
+      <a href="#" onclick="switchTab('explorer'); toggleDrawer();">◈ API Explorer</a>
+      <a href="#" onclick="switchTab('settings'); toggleDrawer();">⚙ Settings</a>
+      <a href="#" onclick="showLogoutModal(); toggleDrawer();">↪ Logout</a>
+    </nav>
+    <div class="drawer-footer">● API Online</div>
+  </div>
+
   <!-- Mobile Header (hamburger) -->
   <div class="mobile-header">
     <span>◈ FHIR INTEROP</span>
@@ -367,6 +460,15 @@ PID|1||123456||DOE^JOHN</textarea>
 
   <!-- Toast Container -->
   
+  <!-- Mobile Bottom Nav -->
+  <div class="mobile-bottom-nav">
+    <a href="#" class="active" onclick="switchTab('dashboard')">Home</a>
+    <a href="#" onclick="switchTab('usage')">Usage</a>
+    <a href="#" onclick="switchTab('billing')">Billing</a>
+    <a href="#" onclick="toggleDrawer()">More</a>
+  </div>
+
+
   <!-- Mobile Bottom Nav -->
   <div class="mobile-bottom-nav">
     <a href="#" class="active" onclick="switchTab('dashboard')">Home</a>
