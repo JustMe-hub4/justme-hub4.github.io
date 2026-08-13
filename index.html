@@ -54,7 +54,7 @@
 
     /* Mobile Responsive (bottom nav) */
     @media (max-width: 768px) {
-      .app { flex-direction: column; }
+      .app { display: block; }
       .sidebar {
         position: fixed;
         bottom: 0;
@@ -62,18 +62,26 @@
         right: 0;
         width: 100%;
         height: 56px;
-        flex-direction: row;
+        display: flex;
         align-items: center;
-        padding: 0 8px;
-        border-right: none;
+        justify-content: space-around;
+        background: var(--surface);
         border-top: 1px solid var(--border);
-        z-index: 100;
+        z-index: 1000;
       }
       .sidebar h2 { display: none; }
-      .sidebar nav { display: flex; width: 100%; justify-content: space-around; }
-      .sidebar a { margin: 0; padding: 8px; font-size: 12px; }
-      .main { padding-bottom: 70px; }
-      #dashboard-container { padding-bottom: 70px; }
+      .sidebar nav { display: flex; width: 100%; justify-content: space-around; margin: 0; padding: 0; }
+      .sidebar a { margin: 0; padding: 8px 10px; font-size: 12px; }
+      .sidebar a.logout-mobile { color: var(--error); }
+      .main {
+        padding-bottom: 80px;
+        max-height: calc(100vh - 56px);
+        overflow-y: auto;
+      }
+      #dashboard-container {
+        height: 100vh;
+        overflow-y: auto;
+      }
     }
 
 
@@ -88,6 +96,15 @@
       pointer-events: none;
     }
     .chart-wrapper { position: relative; }
+
+
+    .desktop-logout { display: block; }
+    .logout-mobile { display: none; }
+
+    @media (max-width: 768px) {
+      .desktop-logout { display: none; }
+      .logout-mobile { display: block; }
+    }
 
 </style>
 </head>
@@ -119,8 +136,9 @@
           <a href="#" onclick="switchTab('docs')">📘 Docs</a>
           <a href="#" onclick="switchTab('explorer')">🧪 Explorer</a>
           <a href="#" onclick="switchTab('settings')">⚙ Settings</a>
+          <a href="#" class="logout-mobile" onclick="showLogoutModal()">↪ Logout</a>
         </nav>
-        <button onclick="showLogoutModal()" class="btn btn-danger" style="width:100%; margin-top:24px;">Sign Out</button>
+        <button onclick="showLogoutModal()" class="btn btn-danger desktop-logout" style="width:100%; margin-top:24px;">Sign Out</button>
       </div>
       <div class="main">
         <div id="tab-dashboard" class="tab-content active">
@@ -342,6 +360,17 @@ PID|1||123456||DOE^JOHN</textarea>
     });
 
     (async () => {
+      // Handle OAuth redirect (GitHub, Google, etc.)
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('code')) {
+        try {
+          await supabaseClient.auth.exchangeCodeForSession(urlParams.get('code'));
+        } catch (e) {
+          console.error('OAuth code exchange failed:', e);
+        }
+      }
+
+      // Get session after potential OAuth exchange
       const { data } = await supabaseClient.auth.getSession();
       if (data.session) {
         session = data.session;
