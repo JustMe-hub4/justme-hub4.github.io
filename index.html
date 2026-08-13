@@ -4,27 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FHIR Interop Engine</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>◈</text></svg>">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://js.stripe.com/v3/"></script>
   <style>
     :root {
-      --bg: #07111F;
-      --surface: #101D2D;
-      --surface-elevated: #162438;
-      --border: #1E334A;
-      --primary: #16C7D9;
-      --indigo: #6366F1;
-      --violet: #8B5CF6;
-      --success: #22C55E;
-      --warning: #F59E0B;
-      --error: #EF4444;
-      --text: #F8FAFC;
-      --text-secondary: #CBD5E1;
-      --text-muted: #94A3B8;
-      --font: 'Inter', system-ui, sans-serif;
-      --mono: 'JetBrains Mono', monospace;
+      --bg: #07111F; --surface: #101D2D; --surface-elevated: #162438; --border: #1E334A;
+      --primary: #16C7D9; --indigo: #6366F1; --violet: #8B5CF6;
+      --success: #22C55E; --warning: #F59E0B; --error: #EF4444;
+      --text: #F8FAFC; --text-secondary: #94A3B8; --text-muted: #64748B;
+      --font: 'Inter', system-ui, sans-serif; --mono: 'JetBrains Mono', monospace;
       --radius: 10px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -33,8 +26,8 @@
     input, textarea { font-family: inherit; }
     .hidden { display: none !important; }
 
-    /* Layout */
-    .app { display: flex; min-height: 100vh; }
+    /* App Shell */
+    .app-shell { display: flex; min-height: 100vh; }
     .sidebar { width: 176px; background: var(--surface); padding: 24px 16px; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
     .sidebar .logo { font-size: 20px; font-weight: 700; color: var(--primary); margin-bottom: 32px; }
     .sidebar nav { flex: 1; }
@@ -42,32 +35,48 @@
     .sidebar nav a:hover, .sidebar nav a.active { background: var(--surface-elevated); color: var(--text); }
     .sidebar nav a.active { color: var(--primary); }
     .sidebar .logout { margin-top: auto; width: 100%; }
-    .main { flex: 1; padding: 24px; max-width: 1200px; overflow-y: auto; }
+    .main-content { flex: 1; padding: 24px; max-width: 1200px; overflow-y: auto; }
 
-    /* Cards */
+    /* Mobile */
+    .mobile-header { display: none; }
+    .mobile-drawer { display: none; }
+    .mobile-bottom-nav { display: none; }
+
+    @media (max-width: 1023px) {
+      .sidebar { display: none; }
+      .mobile-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+      .hamburger { background: none; border: none; color: var(--text); font-size: 24px; }
+      .mobile-drawer { position: fixed; top: 0; left: 0; bottom: 0; width: 300px; background: var(--surface); z-index: 4000; padding: 20px; transform: translateX(-100%); transition: transform 0.3s; }
+      .mobile-drawer.open { transform: translateX(0); }
+      .drawer-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+      .mobile-bottom-nav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; height: 64px; background: var(--surface); border-top: 1px solid var(--border); justify-content: space-around; align-items: center; }
+      .mobile-bottom-nav a { color: var(--text-muted); text-decoration: none; font-size: 12px; }
+      .mobile-bottom-nav a.active { color: var(--primary); }
+      .main-content { padding: 16px 16px 80px; }
+    }
+
+    @media (max-width: 640px) {
+      .grid-2 { grid-template-columns: 1fr; }
+      .btn-block { width: 100%; }
+      .modal-box { width: 100%; border-radius: 12px 12px 0 0; }
+      .modal-overlay { align-items: flex-end; }
+      .key-actions .btn { width: 100%; }
+    }
+
+    /* Components */
     .card { background: var(--surface); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; border: 1px solid var(--border); }
     .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
     .card-title { font-size: 18px; font-weight: 600; }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-
-    /* Buttons */
-    .btn { padding: 10px 20px; border-radius: 6px; font-weight: 600; border: none; transition: background 0.2s, filter 0.2s; }
+    .btn { padding: 10px 20px; border-radius: 6px; font-weight: 600; border: none; transition: background 0.2s; }
     .btn-primary { background: var(--primary); color: #07111F; }
     .btn-primary:hover { filter: brightness(1.1); }
     .btn-secondary { background: var(--surface-elevated); color: var(--text); border: 1px solid var(--border); }
     .btn-danger { background: var(--error); color: white; }
     .btn-block { width: 100%; }
-
-    /* Inputs */
     .input { width: 100%; padding: 10px 14px; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
-
-    /* API Key */
     .key-display { font-family: var(--mono); background: var(--surface-elevated); padding: 12px; border-radius: 6px; word-break: break-all; }
     .key-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-
-    /* Chart */
-    .chart-wrapper { position: relative; }
-    .chart-empty-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
 
     /* Toast */
     .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 10000; display: flex; flex-direction: column; gap: 8px; }
@@ -82,48 +91,37 @@
     .modal-box { background: var(--surface); border-radius: 12px; padding: 24px; width: 400px; border: 1px solid var(--border); }
     .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
 
-    /* Mobile */
-    .mobile-drawer { display: none; }
-    .mobile-bottom-nav { display: none; }
+    /* States */
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-overlay { position: absolute; inset: 0; background: rgba(7,17,31,0.7); display: flex; align-items: center; justify-content: center; }
+    .empty-state { text-align: center; padding: 40px; color: var(--text-muted); }
 
-    @media (max-width: 1023px) {
-      .sidebar { display: none; }      .mobile-drawer {
-        position: fixed;
-        top: 0; left: 0; bottom: 0;
-        width: 300px;
-        background: var(--surface);
-        z-index: 4000;
-        padding: 20px;
-        transform: translateX(-100%);
-        transition: transform 0.3s;
-      }
-      .mobile-drawer.open { transform: translateX(0); }
-      .drawer-header { display: flex; justify-content: space-between; margin-bottom: 20px; }
-      .mobile-bottom-nav {
-        display: flex;
-        position: fixed;
-        bottom: 0; left: 0; right: 0;
-        height: 56px;
-        background: var(--surface);
-        border-top: 1px solid var(--border);
-        justify-content: space-around;
-        align-items: center;
-      }
-      .mobile-bottom-nav a { color: var(--text-muted); text-decoration: none; font-size: 12px; }
-      .mobile-bottom-nav a.active { color: var(--primary); }
-      .main { padding: 16px; }
-    }
+    /* Pages */
+    .page { display: none; }
+    .page.active { display: block; }
 
-    @media (max-width: 640px) {
-      .grid-2 { grid-template-columns: 1fr; }
-      .btn-block { width: 100%; }
-      .modal-box { width: 100%; border-radius: 12px 12px 0 0; }
-      .modal-overlay { align-items: flex-end; }
-      .key-actions .btn { width: 100%; }
-    }
+    /* Landing */
+    .landing-hero { text-align: center; padding: 80px 20px; }
+    .landing-hero h1 { font-size: 48px; font-weight: 700; margin-bottom: 16px; }
+    .landing-hero p { font-size: 20px; color: var(--text-secondary); max-width: 600px; margin: 0 auto 32px; }
+    .landing-cta { display: flex; gap: 16px; justify-content: center; }
+
+    /* Login */
+    .auth-container { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .auth-card { background: var(--surface); border-radius: 12px; padding: 40px; width: 400px; text-align: center; }
+
+    /* Code block */
+    pre { background: var(--surface-elevated); padding: 12px; border-radius: 6px; overflow-x: auto; font-family: var(--mono); }
   </style>
 </head>
 <body>
+  <!-- Mobile Header -->
+  <div class="mobile-header">
+    <span>◈ FHIR INTEROP</span>
+    <button class="hamburger" onclick="toggleDrawer()">☰</button>
+  </div>
+
   <!-- Mobile Drawer -->
   <div id="mobile-drawer" class="mobile-drawer">
     <div class="drawer-header">
@@ -131,144 +129,262 @@
       <button onclick="toggleDrawer()">×</button>
     </div>
     <nav>
-      <a href="#" onclick="switchTab('dashboard'); toggleDrawer();">◉ Dashboard</a>
-      <a href="#" onclick="switchTab('usage'); toggleDrawer();">◇ Usage</a>
-      <a href="#" onclick="switchTab('billing'); toggleDrawer();">$ Billing</a>
-      <a href="#" onclick="switchTab('docs'); toggleDrawer();">⌘ API Docs</a>
-      <a href="#" onclick="switchTab('explorer'); toggleDrawer();">◈ API Explorer</a>
-      <a href="#" onclick="switchTab('settings'); toggleDrawer();">⚙ Settings</a>
-      <a href="#" onclick="showLogoutModal(); toggleDrawer();">↪ Sign Out</a>
+      <a href="#" onclick="navigate('dashboard'); toggleDrawer();">◉ Dashboard</a>
+      <a href="#" onclick="navigate('usage'); toggleDrawer();">◇ Usage</a>
+      <a href="#" onclick="navigate('billing'); toggleDrawer();">$ Billing</a>
+      <a href="#" onclick="navigate('docs'); toggleDrawer();">⌘ API Docs</a>
+      <a href="#" onclick="navigate('explorer'); toggleDrawer();">◈ API Explorer</a>
+      <a href="#" onclick="navigate('settings'); toggleDrawer();">⚙ Settings</a>
       <a href="#" onclick="showLogoutModal(); toggleDrawer();">↪ Sign Out</a>
     </nav>
-        <button onclick="showLogoutModal()" class="btn btn-danger btn-block logout">Sign Out</button>
   </div>
 
-  <!-- Login Container -->
-  <div id="login-container" class="hidden">
-    <div class="login-card" style="max-width:400px; margin:0 auto; padding:40px; background:var(--surface); border-radius:12px; text-align:center;">
-      <h1>FHIR Interop Engine</h1>
-      <p style="color:var(--text-muted);">HL7v2 → FHIR R4 Translation</p>
-      <input type="email" id="login-email" class="input" placeholder="Enter your email">
-      <input type="password" id="login-password" class="input" placeholder="Password" style="display:none;">
-      <button id="btn-login" class="btn btn-primary btn-block">Sign In / Sign Up</button>
-      <p id="login-msg" style="color:var(--text-muted); margin-top:12px;"></p>
-      <span class="toggle-link" id="toggle-auth-mode" style="color:var(--primary); cursor:pointer;">Or use password</span>
-      <button onclick="socialLogin('google')" class="btn btn-secondary btn-block">Continue with Google</button>
-      <button onclick="socialLogin('github')" class="btn btn-secondary btn-block">Continue with GitHub</button>
-      <button onclick="socialLogin('linkedin')" class="btn btn-secondary btn-block">Continue with LinkedIn</button>
-      <button onclick="socialLogin('facebook')" class="btn btn-secondary btn-block">Continue with Facebook</button>
+  <!-- Mobile Bottom Nav -->
+  <div class="mobile-bottom-nav">
+    <a href="#" class="active" onclick="navigate('dashboard')">Home</a>
+    <a href="#" onclick="navigate('usage')">Usage</a>
+    <a href="#" onclick="navigate('billing')">Billing</a>
+    <a href="#" onclick="toggleDrawer()">More</a>
+  </div>
+
+  <!-- App Shell -->
+  <div id="app-root" class="app-shell">
+    <!-- Desktop Sidebar (hidden on mobile) -->
+    <div class="sidebar">
+      <div class="logo">◈ FHIR</div>
+      <nav>
+        <a href="#" class="active" onclick="navigate('dashboard')">📊 Dashboard</a>
+        <a href="#" onclick="navigate('usage')">📈 Usage</a>
+        <a href="#" onclick="navigate('billing')">💳 Billing</a>
+        <a href="#" onclick="navigate('docs')">📘 Docs</a>
+        <a href="#" onclick="navigate('explorer')">🧪 Explorer</a>
+        <a href="#" onclick="navigate('settings')">⚙ Settings</a>
+      </nav>
+      <button onclick="showLogoutModal()" class="btn btn-danger btn-block logout">Sign Out</button>
     </div>
-  </div>
 
-  <!-- Dashboard Container -->
-  <div id="dashboard-container" class="hidden">
-    <div class="app">
-      <!-- Desktop Sidebar -->
-      <div class="sidebar">
-        <div class="logo">◈ FHIR</div>
-        <nav>
-          <a href="#" class="active" onclick="switchTab('dashboard')">📊 Dashboard</a>
-          <a href="#" onclick="switchTab('usage')">📈 Usage</a>
-          <a href="#" onclick="switchTab('billing')">💳 Billing</a>
-          <a href="#" onclick="switchTab('docs')">📘 Docs</a>
-          <a href="#" onclick="switchTab('explorer')">🧪 Explorer</a>
-          <a href="#" onclick="switchTab('settings')">⚙ Settings</a>
-        </nav>
-        <button onclick="showLogoutModal()" class="btn btn-danger btn-block logout">Sign Out</button>
+    <!-- Main Content Area -->
+    <div class="main-content" id="main-content">
+      <!-- Landing Page -->
+      <div id="page-landing" class="page active">
+        <div class="landing-hero">
+          <h1>Healthcare Interoperability</h1>
+          <p>HL7v2 → FHIR R4. Translate legacy healthcare messages into modern FHIR resources with a simple API.</p>
+          <div class="landing-cta">
+            <button class="btn btn-primary" onclick="navigate('login')">Start Building</button>
+            <button class="btn btn-secondary" onclick="navigate('docs')">Read Documentation</button>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <h3>⚡ Fast</h3>
+            <p>Low-latency translation</p>
+          </div>
+          <div class="card">
+            <h3>🔐 Reliable</h3>
+            <p>Atomic credits + refunds</p>
+          </div>
+          <div class="card">
+            <h3>↻ Self-serve</h3>
+            <p>No sales calls</p>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Pricing</h3>
+          <div class="grid-2">
+            <div class="card"><h4>Starter</h4><p>1,000 credits</p><p>$30</p></div>
+            <div class="card"><h4>Growth ★</h4><p>10,000 credits</p><p>$250</p></div>
+            <div class="card"><h4>Enterprise</h4><p>Custom</p><p>Contact</p></div>
+          </div>
+        </div>
       </div>
 
-      <!-- Main Content -->
-      <div class="main">
-        <div id="tab-dashboard" class="tab-content active">
-          <h2 id="greeting">Good morning, developer.</h2>
+      <!-- Login Page -->
+      <div id="page-login" class="page">
+        <div class="auth-container">
+          <div class="auth-card">
+            <h1>Sign in</h1>
+            <p>Access your developer portal.</p>
+            <input type="email" id="login-email" class="input" placeholder="Email address">
+            <input type="password" id="login-password" class="input" placeholder="Password" style="display:none;">
+            <button id="btn-login" class="btn btn-primary btn-block">Continue</button>
+            <p id="login-msg"></p>
+            <span class="toggle-link" id="toggle-auth-mode" style="cursor:pointer; color:var(--primary);">Or use password</span>
+            <div style="margin-top:16px;">
+              <button onclick="socialLogin('google')" class="btn btn-secondary btn-block">Google</button>
+              <button onclick="socialLogin('github')" class="btn btn-secondary btn-block">GitHub</button>
+              <button onclick="socialLogin('linkedin')" class="btn btn-secondary btn-block">LinkedIn</button>
+              <button onclick="socialLogin('facebook')" class="btn btn-secondary btn-block">Facebook</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Onboarding Page -->
+      <div id="page-onboarding" class="page">
+        <div class="card">
+          <h2>You're ready to build.</h2>
+          <p>Your account has been created.</p>
+          <div class="card">
+            <h3>Free Credits</h3>
+            <p>1,000 credits</p>
+          </div>
+          <div class="card">
+            <h3>API Key</h3>
+            <div class="key-display" id="onboarding-api-key">sk_live_••••••••••••••••••</div>
+            <button onclick="revealOnboardingKey()">Reveal API Key</button>
+          </div>
+          <div class="card">
+            <h3>Get Started</h3>
+            <p>① Copy key → ② Send HL7 → ③ Receive FHIR</p>
+            <button class="btn btn-primary" onclick="navigate('dashboard')">Open Quick Start</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dashboard Page -->
+      <div id="page-dashboard" class="page">
+        <h2 id="greeting">Good morning, developer.</h2>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header"><span class="card-title">Available Credits</span></div>
+            <div class="credit-balance-display" style="font-size:2rem; font-weight:700;">0</div>
+            <div id="credit-warning"></div>
+            <button class="btn btn-primary btn-block" onclick="navigate('billing')">Buy Credits</button>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">Translation Health</span></div>
+            <div><span id="success-rate">--</span> success</div>
+            <div id="health-stats"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">API Key</span></div>
+          <div class="key-display" id="api-key-display">••••••••••••••••••••••••</div>
+          <div class="key-actions">
+            <button id="btn-show-key" class="btn btn-secondary" onclick="toggleKey()">Show</button>
+            <button class="btn btn-secondary" onclick="copyKey()">Copy</button>
+            <button class="btn btn-danger" onclick="showRotateModal()">Rotate</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Translations (Last 7 Days)</span></div>
+          <div class="chart-wrapper">
+            <div id="usage-empty-state" class="chart-empty-overlay hidden">No translations yet</div>
+            <canvas id="usage-chart" style="min-height:200px; max-height:300px;"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Get Started</span></div>
+          <p>① Copy API key → ② Send HL7 → ③ Receive FHIR</p>
+          <button class="btn btn-primary btn-block" onclick="navigate('docs')">Get Started</button>
+        </div>
+      </div>
+
+      <!-- Usage Page -->
+      <div id="page-usage" class="page">
+        <h2>Usage</h2>
+        <div class="grid-2">
+          <div class="card"><h3>Total</h3><p id="total-translations">0</p></div>
+          <div class="card"><h3>Successful</h3><p id="successful-translations">0</p></div>
+          <div class="card"><h3>Failed</h3><p id="failed-translations">0</p></div>
+          <div class="card"><h3>Refunded</h3><p id="refunded-translations">0</p></div>
+        </div>
+        <div class="card">
+          <canvas id="usage-chart-2" style="min-height:200px; max-height:300px;"></canvas>
+        </div>
+        <div class="card">
+          <h3>Recent Requests</h3>
+          <div id="recent-requests"></div>
+        </div>
+      </div>
+
+      <!-- Request Details Drawer (simple) -->
+      <div id="page-request-details" class="page">
+        <div class="card">
+          <h3>Request Details</h3>
+          <p id="request-detail"></p>
+        </div>
+      </div>
+
+      <!-- Billing Page -->
+      <div id="page-billing" class="page">
+        <h2>Billing</h2>
+        <div class="grid-2">
+          <div class="card"><h3>Current Balance</h3><p class="credit-balance-display">0</p></div>
+          <div class="card"><h3>Total Spent</h3><p id="total-spent">$0.00</p></div>
+        </div>
+        <div class="card">
+          <h3>Buy Credits</h3>
           <div class="grid-2">
-            <div class="card">
-              <div class="card-header"><span class="card-title">Available Credits</span></div>
-              <div style="font-size:2rem; font-weight:700;" class="credit-balance-display">0</div>
-              <div id="credit-warning" style="margin-top:8px;"></div>
-              <button class="btn btn-primary btn-block" onclick="switchTab('billing')">Buy Credits</button>
-            </div>
-            <div class="card">
-              <div class="card-header"><span class="card-title">Translation Health</span></div>
-              <div style="display:flex; gap:16px; margin-top:8px;">
-                <div><span style="font-size:24px; font-weight:700;" id="success-rate">--</span><br><span style="color:var(--text-muted)">Success rate</span></div>
-                <div><span style="font-size:24px; font-weight:700;" id="total-translations">0</span><br><span style="color:var(--text-muted)">Total</span></div>
-                <div><span style="font-size:24px; font-weight:700; color:var(--success);" id="successful-translations">0</span><br><span style="color:var(--text-muted)">Successful</span></div>
-                <div><span style="font-size:24px; font-weight:700; color:var(--error);" id="failed-translations">0</span><br><span style="color:var(--text-muted)">Failed</span></div>
-              </div>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-header"><span class="card-title">API Key</span></div>
-            <div class="key-display" id="api-key-display">••••••••••••••••••••••••</div>
-            <div class="key-actions">
-              <button id="btn-show-key" class="btn btn-secondary" onclick="toggleKey()">Show</button>
-              <button class="btn btn-secondary" onclick="copyKey()">Copy</button>
-              <button class="btn btn-danger" onclick="showRotateModal()">Rotate</button>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-header"><span class="card-title">Translations (Last 7 Days)</span></div>
-            <div class="chart-wrapper">
-              <div id="usage-empty-state" class="chart-empty-overlay hidden">No translations yet</div>
-              <canvas id="usage-chart" style="min-height:200px; max-height:300px;"></canvas>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-header"><span class="card-title">Get Started</span></div>
-            <p>① Copy API key → ② Send HL7 → ③ Receive FHIR</p>
-            <button class="btn btn-primary btn-block" onclick="switchTab('docs')">Get Started</button>
+            <div class="card"><h4>Starter</h4><p>100 credits</p><p>$30</p><button class="btn btn-primary" onclick="buyCredits('price_1U1xzUIUjoQtwpInIy0o6u1O')">Buy</button></div>
+            <div class="card"><h4>Growth ★</h4><p>10,000 credits</p><p>$2,000</p><button class="btn btn-primary" onclick="buyCredits('price_1U1xzUIUjoQtwpInNFq6TRCU')">Buy</button></div>
+            <div class="card"><h4>Volume</h4><p>75,000 credits</p><p>$9,000</p><button class="btn btn-primary" onclick="buyCredits('price_1U1xzUIUjoQtwpInL8G3EBZX')">Buy</button></div>
           </div>
         </div>
-
-        <div id="tab-usage" class="tab-content hidden">
-          <h2>Usage</h2>
-          <div class="card">
-            <canvas id="usage-chart-2" style="min-height:200px; max-height:300px;"></canvas>
-          </div>
-        </div>
-
-        <div id="tab-billing" class="tab-content hidden">
-          <h2>Buy Credits</h2>
-          <div class="card"><h3>Starter - 100 credits - $30</h3><button class="btn btn-primary" onclick="buyCredits('price_1U1xzUIUjoQtwpInIy0o6u1O')">Buy</button></div>
-          <div class="card"><h3>Growth - 10,000 credits - $2,000</h3><button class="btn btn-primary" onclick="buyCredits('price_1U1xzUIUjoQtwpInNFq6TRCU')">Buy</button></div>
-          <div class="card"><h3>Volume - 75,000 credits - $9,000</h3><button class="btn btn-primary" onclick="buyCredits('price_1U1xzUIUjoQtwpInL8G3EBZX')">Buy</button></div>
+        <div class="card">
           <h3>Invoice History</h3>
           <div id="invoice-list">No invoices yet.</div>
         </div>
+      </div>
 
-        <div id="tab-docs" class="tab-content hidden">
-          <h2>Quick Start</h2>
-          <div class="card">
-            <p>1. Copy your API key</p>
-            <div class="key-display" id="doc-api-key">••••••••••••••••••••••••</div>
-            <button onclick="copyKey()" class="btn btn-secondary">Copy</button>
-            <br><br>
-            <p>2. Send a request</p>
-            <pre style="background:var(--surface-elevated); padding:12px; border-radius:6px; overflow-x:auto;">curl -X POST https://quack-xzno.onrender.com/v1/translate -H "X-API-Key: YOUR_KEY" -H "Content-Type: text/plain" --data-binary @message.hl7</pre>
-          </div>
-        </div>
-
-        <div id="tab-explorer" class="tab-content hidden">
-          <h2>API Explorer</h2>
-          <div class="card">
-            <input type="text" id="explorer-api-key" class="input" placeholder="Paste your API key here if not auto-filled">
-            <textarea id="explorer-hl7" class="input" style="height:120px; font-family:var(--mono); margin-top:8px;">MSH|^~\&|LAB|HOSPITAL|APP|20260809120000||ADT^A01|MSG001|P|2.5
-PID|1||123456||DOE^JOHN</textarea>
-            <input id="explorer-idem" class="input" placeholder="Idempotency Key (optional)" style="margin-top:8px;">
-            <button onclick="exploreTranslate()" class="btn btn-primary btn-block" style="margin-top:12px;">Translate</button>
-            <div id="explorer-response" style="margin-top:16px;"></div>
-          </div>
-        </div>
-
-        <div id="tab-settings" class="tab-content hidden">
-          <h2>Settings</h2>
-          <div class="card">
-            <p>Email: <span id="settings-email"></span></p>
-            <p>Member since: <span id="settings-joined"></span></p>
-          </div>
+      <!-- Checkout Return Page -->
+      <div id="page-checkout-return" class="page">
+        <div class="card">
+          <h3>Verifying payment...</h3>
+          <div class="spinner"></div>
         </div>
       </div>
+
+      <!-- Docs Page -->
+      <div id="page-docs" class="page">
+        <h2>API Documentation</h2>
+        <div class="card">
+          <h3>POST /v1/translate</h3>
+          <p>Translate HL7v2 → FHIR R4</p>
+          <pre>curl -X POST https://quack-xzno.onrender.com/v1/translate -H "X-API-Key: YOUR_KEY" -H "Content-Type: text/plain" --data-binary @message.hl7</pre>
+        </div>
+      </div>
+
+      <!-- Explorer Page -->
+      <div id="page-explorer" class="page">
+        <h2>API Explorer</h2>
+        <div class="card">
+          <input type="text" id="explorer-api-key" class="input" placeholder="Paste your API key here if not auto-filled">
+          <textarea id="explorer-hl7" class="input" style="height:120px; font-family:var(--mono); margin-top:8px;">MSH|^~\&|LAB|HOSPITAL|APP|20260809120000||ADT^A01|MSG001|P|2.5
+PID|1||123456||DOE^JOHN</textarea>
+          <input id="explorer-idem" class="input" placeholder="Idempotency Key (optional)" style="margin-top:8px;">
+          <button onclick="exploreTranslate()" class="btn btn-primary btn-block" style="margin-top:12px;">Translate</button>
+          <div id="explorer-response" style="margin-top:16px;"></div>
+        </div>
+      </div>
+
+      <!-- Settings Page -->
+      <div id="page-settings" class="page">
+        <h2>Settings</h2>
+        <div class="card">
+          <h3>Account</h3>
+          <p>Email: <span id="settings-email"></span></p>
+          <p>Member since: <span id="settings-joined"></span></p>
+        </div>
+        <div class="card">
+          <h3>API Access</h3>
+          <div class="key-display" id="settings-api-key">••••••••••••••••••••••••</div>
+          <div class="key-actions">
+            <button class="btn btn-secondary" onclick="toggleKey()">Show</button>
+            <button class="btn btn-secondary" onclick="copyKey()">Copy</button>
+            <button class="btn btn-danger" onclick="showRotateModal()">Rotate API Key</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Session</h3>
+          <button class="btn btn-danger" onclick="showLogoutModal()">Sign Out</button>
+        </div>
+      </div>
+
+      <!-- 404 / 500 pages (placeholder) -->
+      <div id="page-404" class="page">404 Not Found</div>
+      <div id="page-500" class="page">500 Server Error</div>
     </div>
   </div>
 
@@ -276,8 +392,8 @@ PID|1||123456||DOE^JOHN</textarea>
   <div id="rotate-modal" class="modal-overlay hidden">
     <div class="modal-box">
       <h3>Rotate API Key</h3>
-      <p>Your current key will be immediately deactivated.</p>
-      <p>Credits will be transferred to the new key.</p>
+      <p>This will immediately invalidate your current API key.</p>
+      <p>Any integration using the old key will receive 401 responses.</p>
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="closeRotateModal()">Cancel</button>
         <button class="btn btn-danger" onclick="rotateKey()">Rotate Key</button>
@@ -288,9 +404,8 @@ PID|1||123456||DOE^JOHN</textarea>
   <!-- Logout Modal -->
   <div id="logout-modal" class="modal-overlay hidden">
     <div class="modal-box">
-      <h3>Sign Out</h3>
-      <p>Are you sure you want to sign out?</p>
-      <p>Your API key and credits will remain unchanged.</p>
+      <h3>Sign out?</h3>
+      <p>You'll need to sign in again to access your developer portal.</p>
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="closeLogoutModal()">Cancel</button>
         <button class="btn btn-danger" onclick="confirmSignOut()">Sign Out</button>
@@ -301,15 +416,8 @@ PID|1||123456||DOE^JOHN</textarea>
   <!-- Toast Container -->
   <div id="toast-container" class="toast-container"></div>
 
-  <!-- Mobile Bottom Nav -->
-  <div class="mobile-bottom-nav">
-    <a href="#" class="active" onclick="switchTab('dashboard')">Home</a>
-    <a href="#" onclick="switchTab('usage')">Usage</a>
-    <a href="#" onclick="switchTab('billing')">Billing</a>
-    <a href="#" onclick="toggleDrawer()" id="mobile-more-link">More</a>
-  </div>
-
   <script>
+    // Config
     const SUPABASE_URL = 'https://lhgfolrupmsklrccirpj.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_4y3_i7S_YNCgOoEkbbVWRg_qXLBNlyf';
     const API_BASE = 'https://quack-xzno.onrender.com';
@@ -322,8 +430,34 @@ PID|1||123456||DOE^JOHN</textarea>
 
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let stripe = typeof Stripe !== 'undefined' ? Stripe(STRIPE_KEY) : null;
-    let session = null, currentApiKey = '', apiKeyRevealed = false, credits = 0, dailyUsage = {}, invoices = [];
+    let session = null;
+    let currentApiKey = '';
+    let apiKeyRevealed = false;
+    let credits = 0;
+    let dailyUsage = {};
+    let invoices = [];
 
+    // Navigation
+    function navigate(page) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      const target = document.getElementById('page-' + page);
+      if (target) target.classList.add('active');
+      document.querySelectorAll('.sidebar a, .mobile-bottom-nav a').forEach(a => a.classList.remove('active'));
+      const link = document.querySelector(`.sidebar a[onclick="navigate('${page}')"], .mobile-bottom-nav a[onclick="navigate('${page}')"]`);
+      if (link) link.classList.add('active');
+      if (page === 'dashboard') { fetchProfile(); fetchUsage(); fetchInvoices(); }
+      if (page === 'usage') { fetchUsage(); }
+      if (page === 'billing') { fetchProfile(); fetchInvoices(); }
+      if (page === 'settings') { fetchProfile(); }
+      if (page === 'explorer') { populateExplorerKey(); }
+      if (page === 'docs') { updateApiKeyDisplay(); }
+    }
+
+    function toggleDrawer() {
+      document.getElementById('mobile-drawer').classList.toggle('open');
+    }
+
+    // Toast
     function showToast(msg, type = 'info') {
       const container = document.getElementById('toast-container');
       const toast = document.createElement('div');
@@ -333,10 +467,68 @@ PID|1||123456||DOE^JOHN</textarea>
       setTimeout(() => toast.remove(), 4000);
     }
 
-    function toggleDrawer() {
-      document.getElementById('mobile-drawer').classList.toggle('open');
+    // Auth
+    async function socialLogin(provider) {
+      const { error } = await supabaseClient.auth.signInWithOAuth({ provider });
+      if (error) showToast(error.message, 'error');
     }
+    async function passwordLogin() {
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      const { error: signInError } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (signInError) {
+        if (signInError.message.includes('Invalid login credentials')) {
+          const { error: signUpError } = await supabaseClient.auth.signUp({ email, password });
+          if (signUpError) showToast(signUpError.message, 'error');
+          else await supabaseClient.auth.signInWithPassword({ email, password });
+        } else showToast(signInError.message, 'error');
+      }
+    }
+    async function magicLinkLogin() {
+      const email = document.getElementById('login-email').value;
+      const { error } = await supabaseClient.auth.signInWithOtp({ email });
+      if (error) showToast(error.message, 'error');
+      else showToast('Magic link sent! Check your email.', 'success');
+    }
+    const toggleAuthLink = document.getElementById('toggle-auth-mode');
+    const pwField = document.getElementById('login-password');
+    const loginBtn = document.getElementById('btn-login');
+    let isPasswordMode = false;
+    toggleAuthLink.addEventListener('click', () => {
+      isPasswordMode = !isPasswordMode;
+      pwField.style.display = isPasswordMode ? 'block' : 'none';
+      toggleAuthLink.textContent = isPasswordMode ? 'Or use magic link' : 'Or use password';
+      loginBtn.textContent = isPasswordMode ? 'Sign In' : 'Continue';
+      loginBtn.onclick = isPasswordMode ? passwordLogin : magicLinkLogin;
+    });
+    loginBtn.onclick = magicLinkLogin;
 
+    // Session management
+    function showDashboard() {
+      navigate('dashboard');
+      document.getElementById('settings-email').textContent = session.user.email;
+      document.getElementById('settings-joined').textContent = new Date(session.user.created_at).toLocaleDateString();
+      updateGreeting();
+      fetchProfile(); fetchUsage(); fetchInvoices();
+    }
+    function showLogin() {
+      closeLogoutModal();
+      navigate('login');
+    }
+    supabaseClient.auth.onAuthStateChange((event, authSession) => {
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
+        if (authSession) { session = authSession; showDashboard(); }
+      } else if (event === 'SIGNED_OUT') {
+        session = null; closeLogoutModal(); showLogin();
+      }
+    });
+    (async () => {
+      const { data } = await supabaseClient.auth.getSession();
+      if (data.session) { session = data.session; showDashboard(); }
+      else navigate('landing');
+    })();
+
+    // Greeting
     function updateGreeting() {
       const hour = new Date().getHours();
       const el = document.getElementById('greeting');
@@ -349,200 +541,27 @@ PID|1||123456||DOE^JOHN</textarea>
       el.textContent = `${g}, ${firstName}.`;
     }
 
-    async function socialLogin(provider) {
-      try {
-        const { error } = await supabaseClient.auth.signInWithOAuth({ provider });
-        if (error) showToast(error.message, 'error');
-      } catch (e) {
-        console.error('OAuth error:', e);
-        showToast('OAuth sign-in failed: ' + e.message, 'error');
-      }
-    }
-
-    const toggleAuthLink = document.getElementById('toggle-auth-mode');
-    const pwField = document.getElementById('login-password');
-    const loginBtn = document.getElementById('btn-login');
-    let isPasswordMode = false;
-
-    toggleAuthLink.addEventListener('click', () => {
-      isPasswordMode = !isPasswordMode;
-      pwField.style.display = isPasswordMode ? 'block' : 'none';
-      toggleAuthLink.textContent = isPasswordMode ? 'Or use magic link' : 'Or use password';
-      loginBtn.textContent = isPasswordMode ? 'Sign In' : 'Sign In / Sign Up';
-      loginBtn.onclick = isPasswordMode ? passwordLogin : magicLinkLogin;
-    });
-
-    async function magicLinkLogin() {
-      const email = document.getElementById('login-email').value;
-      loginBtn.disabled = true; loginBtn.textContent = 'Sending...';
-      const { error } = await supabaseClient.auth.signInWithOtp({ email });
-      if (error) {
-        document.getElementById('login-msg').textContent = error.message;
-      } else {
-        document.getElementById('login-msg').textContent = 'Magic link sent! Check your email.';
-      }
-      loginBtn.disabled = false; loginBtn.textContent = 'Sign In / Sign Up';
-    }
-
-    async function passwordLogin() {
-      const email = document.getElementById('login-email').value;
-      const password = pwField.value;
-      if (!email || !password) { showToast('Email and password required', 'error'); return; }
-      loginBtn.disabled = true; loginBtn.textContent = 'Signing in...';
-      const { error: signInError } = await supabaseClient.auth.signInWithPassword({ email, password });
-      if (signInError) {
-        if (signInError.message.includes('Invalid login credentials')) {
-          loginBtn.textContent = 'Creating account...';
-          const { error: signUpError } = await supabaseClient.auth.signUp({ email, password });
-          if (signUpError) {
-            showToast(signUpError.message, 'error');
-            loginBtn.disabled = false; loginBtn.textContent = 'Sign In';
-          } else {
-            showToast('Account created! Signing in...', 'success');
-            await supabaseClient.auth.signInWithPassword({ email, password });
-          }
-        } else {
-          showToast(signInError.message, 'error');
-          loginBtn.disabled = false; loginBtn.textContent = 'Sign In';
-        }
-      }
-    }
-
-    loginBtn.onclick = magicLinkLogin;
-
-    function showDashboard() {
-      updateGreeting();
-      document.getElementById('login-container').classList.add('hidden');
-      document.getElementById('dashboard-container').classList.remove('hidden');
-      document.getElementById('settings-email').textContent = session.user.email;
-      document.getElementById('settings-joined').textContent = new Date(session.user.created_at).toLocaleDateString();
-      fetchProfile(); fetchUsage(); fetchInvoices();
-    }
-    function showLogin() {
-      closeLogoutModal();
-      document.getElementById('login-container').classList.remove('hidden');
-      document.getElementById('dashboard-container').classList.add('hidden');
-    }
-
-    supabaseClient.auth.onAuthStateChange((event, authSession) => {
-      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') {
-        if (authSession) { session = authSession; showDashboard(); }
-      } else if (event === 'SIGNED_OUT') {
-        session = null; closeLogoutModal(); showLogin();
-      }
-    });
-
-    (async () => {
-      const { data } = await supabaseClient.auth.getSession();
-      if (data.session) { session = data.session; showDashboard(); }
-    })();
-
-    function switchTab(tab) {
-      document.querySelectorAll('.tab-content').forEach(el => { el.classList.remove('active'); el.classList.add('hidden'); });
-      const target = document.getElementById('tab-' + tab);
-      if (target) { target.classList.remove('hidden'); target.classList.add('active'); }
-      document.querySelectorAll('.sidebar a, .mobile-bottom-nav a').forEach(a => a.classList.remove('active'));
-      const link = document.querySelector(`.sidebar a[onclick="switchTab('${tab}')"], .mobile-bottom-nav a[onclick="switchTab('${tab}')"]`);
-      if (link) link.classList.add('active');
-      if (tab === 'usage') fetchUsage();
-      if (tab === 'billing') { fetchProfile(); fetchInvoices(); }
-      if (tab === 'dashboard') { fetchProfile(); fetchUsage(); fetchInvoices(); }
-      if (tab === 'settings') fetchProfile();
-      if (tab === 'explorer') populateExplorerKey();
-      if (tab === 'docs') updateApiKeyDisplay();
-    }
-
-    async function fetchProfile() {
-      try {
-        // Ensure we have a session; if not, throw to login
-        if (!session) {
-          const { data: { session: fresh } } = await supabaseClient.auth.getSession();
-          if (!fresh) throw new Error('No session');
-          session = fresh;
-        }
-        let accessToken = session.access_token;
-        console.log('Using token:', accessToken.substring(0, 20) + '...');
-        let res = await fetch(`${API_BASE}/portal/me`, {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        if (res.status === 401) {
-          // Token expired; try refresh
-          console.log('Token expired, attempting refresh...');
-          const { data: { session: refreshed }, error: refreshError } = await supabaseClient.auth.refreshSession();
-          if (refreshError || !refreshed) {
-            console.error('Refresh failed:', refreshError);
-            await supabaseClient.auth.signOut();
-            showLogin();
-            return;
-          }
-          session = refreshed;
-          accessToken = refreshed.access_token;
-          console.log('Token refreshed, retrying...');
-          res = await fetch(`${API_BASE}/portal/me`, {
-            headers: { Authorization: `Bearer ${accessToken}` }
-          });
-        }
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`HTTP ${res.status} - ${errText}`);
-        }
-        const d = await res.json();
-        credits = d.credits_remaining;
-        if (d.is_new_key) {
-          currentApiKey = d.api_key;
-          apiKeyRevealed = true;
-          showToast('New API key generated! Copy it now.', 'success');
-        } else {
-          currentApiKey = d.api_key;
-          apiKeyRevealed = false;
-        }
-        updateCreditDisplay();
-        updateApiKeyDisplay();
-        populateExplorerKey();
-      } catch (e) {
-        console.error('fetchProfile error:', e);
-        showToast('Error loading user data: ' + e.message, 'error');
-        // If no session, show login
-        if (e.message.includes('No session')) {
-          showLogin();
-        }
-      }
-    }
-
-    function updateCreditDisplay() {
-      document.querySelectorAll('.credit-balance-display').forEach(el => { el.textContent = credits.toLocaleString(); });
-      const warning = document.getElementById('credit-warning');
-      if (warning) {
-        if (credits < 10) warning.innerHTML = '<span style="color:var(--error)">🔴 Credits almost empty.</span>';
-        else if (credits < 100) warning.innerHTML = '<span style="color:var(--warning)">⚠ Only ' + credits + ' credits left.</span>';
-        else warning.innerHTML = '';
-      }
-    }
-
+    // API key functions
     function updateApiKeyDisplay() {
       const el = document.getElementById('api-key-display');
+      const settingsEl = document.getElementById('settings-api-key');
       const docEl = document.getElementById('doc-api-key');
-      const docInline = document.getElementById('doc-key-inline');
-      const btnShow = document.getElementById('btn-show-key');
+      const showBtn = document.getElementById('btn-show-key');
       if (apiKeyRevealed && currentApiKey !== '********') {
-        el.textContent = currentApiKey;
-        if (btnShow) btnShow.textContent = 'Hide';
+        if (el) el.textContent = currentApiKey;
+        if (settingsEl) settingsEl.textContent = currentApiKey;
         if (docEl) docEl.textContent = currentApiKey;
-        if (docInline) docInline.textContent = currentApiKey;
+        if (showBtn) showBtn.textContent = 'Hide';
       } else {
-        el.textContent = '••••••••••••••••••••••••';
-        if (btnShow) btnShow.textContent = 'Show';
+        if (el) el.textContent = '••••••••••••••••••••••••';
+        if (settingsEl) settingsEl.textContent = '••••••••••••••••••••••••';
         if (docEl) docEl.textContent = '••••••••••••••••••••••••';
-        if (docInline) docInline.textContent = 'YOUR_KEY';
+        if (showBtn) showBtn.textContent = 'Show';
       }
     }
-
     function toggleKey() { apiKeyRevealed = !apiKeyRevealed; updateApiKeyDisplay(); }
     function copyKey() {
-      if (!currentApiKey || currentApiKey === '********') {
-        showToast('Please reveal the key first (click Show) or rotate to see it.', 'error');
-        return;
-      }
+      if (!currentApiKey || currentApiKey === '********') { showToast('Reveal key first', 'error'); return; }
       navigator.clipboard.writeText(currentApiKey);
       showToast('API key copied!', 'success');
     }
@@ -554,31 +573,77 @@ PID|1||123456||DOE^JOHN</textarea>
       }
     }
 
+    // Rotate key
     function showRotateModal() { document.getElementById('rotate-modal').classList.remove('hidden'); }
     function closeRotateModal() { document.getElementById('rotate-modal').classList.add('hidden'); }
     async function rotateKey() {
       closeRotateModal();
-      try {
-        const res = await fetch(`${API_BASE}/portal/rotate-key`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } });
-        if (res.ok) {
-          const d = await res.json();
-          currentApiKey = d.new_api_key; credits = d.credits_remaining; apiKeyRevealed = true;
-          updateApiKeyDisplay(); updateCreditDisplay(); populateExplorerKey();
-          showToast('Key rotated! Copy your new key now.', 'success');
-        } else {
-          const err = await res.text(); console.error('Rotate error:', res.status, err);
-          showToast('Rotation failed.', 'error');
-        }
-      } catch (e) { console.error('Rotate network error:', e); showToast('Network error during rotation.', 'error'); }
+      const res = await fetch(`${API_BASE}/portal/rotate-key`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (res.ok) {
+        const d = await res.json();
+        currentApiKey = d.new_api_key;
+        credits = d.credits_remaining;
+        apiKeyRevealed = true;
+        updateApiKeyDisplay();
+        updateCreditDisplay();
+        populateExplorerKey();
+        showToast('Key rotated!', 'success');
+      } else showToast('Rotation failed', 'error');
     }
 
+    // Logout
     function showLogoutModal() { document.getElementById('logout-modal').classList.remove('hidden'); }
     function closeLogoutModal() { document.getElementById('logout-modal').classList.add('hidden'); }
     function confirmSignOut() { closeLogoutModal(); supabaseClient.auth.signOut(); }
 
+    // Data fetching
+    async function fetchProfile() {
+      try {
+        if (!session) {
+          const { data: { session: fresh } } = await supabaseClient.auth.getSession();
+          if (!fresh) throw new Error('No session');
+          session = fresh;
+        }
+        let res = await fetch(`${API_BASE}/portal/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+        if (res.status === 401) {
+          const { data: { session: refreshed } } = await supabaseClient.auth.refreshSession();
+          if (refreshed) {
+            session = refreshed;
+            res = await fetch(`${API_BASE}/portal/me`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+          }
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const d = await res.json();
+        credits = d.credits_remaining;
+        if (d.is_new_key) { currentApiKey = d.api_key; apiKeyRevealed = true; showToast('New key generated!', 'success'); }
+        else currentApiKey = d.api_key;
+        updateCreditDisplay();
+        updateApiKeyDisplay();
+        populateExplorerKey();
+      } catch (e) {
+        console.error(e);
+        showToast('Error loading user data', 'error');
+      }
+    }
+
+    function updateCreditDisplay() {
+      document.querySelectorAll('.credit-balance-display').forEach(el => el.textContent = credits.toLocaleString());
+      const warning = document.getElementById('credit-warning');
+      if (warning) {
+        if (credits < 10) warning.innerHTML = '<span style="color:var(--error)">🔴 Credits almost empty.</span>';
+        else if (credits < 100) warning.innerHTML = '<span style="color:var(--warning)">⚠ Only ' + credits + ' left.</span>';
+        else warning.innerHTML = '';
+      }
+    }
+
     async function fetchUsage() {
       const res = await fetch(`${API_BASE}/portal/usage`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-      if (res.ok) { const d = await res.json(); dailyUsage = d.daily_usage || {}; renderUsageChart(); }
+      if (res.ok) {
+        const d = await res.json();
+        dailyUsage = d.daily_usage || {};
+        renderUsageChart();
+        updateHealthStats();
+      }
     }
     function renderUsageChart() {
       const ctx = document.getElementById('usage-chart');
@@ -586,26 +651,30 @@ PID|1||123456||DOE^JOHN</textarea>
       if (window.chart) window.chart.destroy();
       const labels = Object.keys(dailyUsage).sort();
       const values = labels.map(d => dailyUsage[d]);
-      const total = values.reduce((a,b)=>a+b,0);
       const emptyState = document.getElementById('usage-empty-state');
       if (emptyState) {
-        if (total === 0) emptyState.classList.remove('hidden'); else emptyState.classList.add('hidden');
+        if (values.reduce((a,b)=>a+b,0) === 0) emptyState.classList.remove('hidden'); else emptyState.classList.add('hidden');
       }
+      window.chart = new Chart(ctx.getContext('2d'), {
+        type: 'bar',
+        data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#16C7D9' }] },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+    }
+    function updateHealthStats() {
+      const total = Object.values(dailyUsage).reduce((a,b)=>a+b,0);
       document.getElementById('total-translations').textContent = total;
       document.getElementById('successful-translations').textContent = total;
       document.getElementById('failed-translations').textContent = 0;
+      document.getElementById('refunded-translations').textContent = 0;
       document.getElementById('success-rate').textContent = total ? '100%' : '--';
-      window.chart = new Chart(ctx.getContext('2d'), {
-        type: 'bar',
-        data: { labels, datasets: [{ label: 'Translations', data: values, backgroundColor: '#16C7D9', borderRadius: 4, barPercentage: 0.6, categoryPercentage: 0.8 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0, color: '#94A3B8' } }, x: { ticks: { color: '#94A3B8' } } } }
-      });
     }
 
     async function fetchInvoices() {
       const res = await fetch(`${API_BASE}/portal/invoices`, { headers: { Authorization: `Bearer ${session.access_token}` } });
       if (res.ok) {
-        const d = await res.json(); invoices = d.invoices || [];
+        const d = await res.json();
+        invoices = d.invoices || [];
         const list = document.getElementById('invoice-list');
         if (invoices.length === 0) list.textContent = 'No invoices yet.';
         else list.innerHTML = invoices.map(inv => `${new Date(inv.created_at).toLocaleDateString()} - $${(inv.amount_total/100).toFixed(2)} - ${inv.credits_purchased} credits`).join('<br>');
@@ -613,16 +682,18 @@ PID|1||123456||DOE^JOHN</textarea>
     }
 
     async function buyCredits(priceId) {
-      if (!stripe) { showToast('Payment unavailable.', 'error'); return; }
+      if (!stripe) { showToast('Payment unavailable', 'error'); return; }
       const res = await fetch(`${API_BASE}/portal/create-checkout-session`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ price_id: priceId }) });
-      if (res.ok) { const data = await res.json(); window.location.href = data.url; }
-      else showToast('Checkout failed.', 'error');
+      if (res.ok) {
+        const data = await res.json();
+        window.location.href = data.url;
+      } else showToast('Checkout failed', 'error');
     }
 
     async function exploreTranslate() {
-      const manualKey = document.getElementById('explorer-api-key').value.trim();
-      const apiKeyToUse = manualKey || currentApiKey;
-      if (!apiKeyToUse || apiKeyToUse === '********') { showToast('Please paste your API key in the Explorer field.', 'error'); return; }
+      const apiKeyInput = document.getElementById('explorer-api-key');
+      const apiKeyToUse = apiKeyInput.value.trim() || currentApiKey;
+      if (!apiKeyToUse || apiKeyToUse === '********') { showToast('Paste API key first', 'error'); return; }
       const hl7 = document.getElementById('explorer-hl7').value;
       const idem = document.getElementById('explorer-idem').value;
       const headers = { 'Content-Type': 'text/plain', 'X-API-Key': apiKeyToUse };
@@ -632,13 +703,7 @@ PID|1||123456||DOE^JOHN</textarea>
       const latency = Date.now() - start;
       const body = await res.text();
       let pretty = ''; try { pretty = JSON.stringify(JSON.parse(body), null, 2); } catch { pretty = body; }
-      let statusMsg = '';
-      if (res.status === 429) statusMsg = '⚠ Rate limit reached. Please wait and retry.';
-      else if (res.status === 402) statusMsg = '⚠ Insufficient credits. Please buy more.';
-      else if (res.status === 422) statusMsg = '🔴 Translation failed. Credit refunded.';
-      else if (res.status === 413) statusMsg = '⚠ Payload too large.';
-      else if (res.status === 401) statusMsg = '🔴 Invalid API key.';
-      document.getElementById('explorer-response').innerHTML = `<div class="card"><span style="color:${res.ok?'var(--success)':'var(--error)'}">${res.status}</span> ${latency}ms ${statusMsg}<pre style="background:var(--surface-elevated); padding:12px; margin-top:8px; overflow-x:auto;">${pretty}</pre></div>`;
+      document.getElementById('explorer-response').innerHTML = `<div class="card"><span>${res.status} ${latency}ms</span><pre>${pretty}</pre></div>`;
       fetchUsage();
     }
   </script>
