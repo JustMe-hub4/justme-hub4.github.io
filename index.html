@@ -171,6 +171,33 @@
       .grid-2 { grid-template-columns: 1fr; }
     }
 
+
+    /* Mobile dashboard optimization */
+    @media (max-width: 480px) {
+      .main { padding: 12px; }
+      .card { padding: 16px; margin-bottom: 12px; }
+      #credit-balance { font-size: 1.5rem; }
+      #success-rate, #total-translations, #successful-translations, #failed-translations {
+        font-size: 18px;
+      }
+      .grid-2 {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+      .card .flex-row {
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      #usage-chart {
+        min-height: 150px;
+        max-height: 250px;
+      }
+      /* Hide Get Started card on very small screens */
+      #tab-dashboard .card:last-child {
+        display: none;
+      }
+    }
+
 </style>
 </head>
 <body>
