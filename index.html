@@ -149,9 +149,14 @@
       border-radius: 50%;
       width: 44px;
       height: 44px;
-      font-size: 20px;
       cursor: pointer;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      align-items: center;
+      justify-content: center;
+    }
+    .mobile-logout-fab svg {
+      display: block;
+      margin: auto;
     }
 
     @media (max-width: 768px) {
@@ -303,7 +308,11 @@ PID|1||123456||DOE^JOHN</textarea>
   
   <!-- Mobile floating logout button -->
   <button id="mobile-logout-fab" onclick="showLogoutModal()" class="mobile-logout-fab" title="Sign Out">
-    ⏻
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+      <polyline points="16 17 21 12 16 7"></polyline>
+      <line x1="21" y1="12" x2="9" y2="12"></line>
+    </svg>
   </button>
 
 <div id="toast-container" style="position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:2000;"></div>
